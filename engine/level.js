@@ -12,27 +12,28 @@ export const GROUND_Y = 9; // top row of the ground
 
 
 // Shared level-building helpers
-function builder(w) {
-  const h = LEVEL_H;
+function builder(w, { h = LEVEL_H, groundY = GROUND_Y } = {}) {
   const tiles = Array.from({ length: h }, () => new Array(w).fill(EMPTY));
   const crates = {}; // "x,y" -> 'jug' | 'shine' | 'bees' | 'swarm:<kind>' | 'gear:<name>'
   const coins = [];
   const spawns = [];
+  const lives = []; // static 1UP pickups
   const set = (x, y, t) => {
     tiles[y][x] = t;
   };
   const B = {
     w,
     h,
+    groundY,
     tiles,
     crates,
     coins,
     spawns,
     ground(x0, x1) {
-      for (let x = x0; x < x1; x++) for (let y = GROUND_Y; y < h; y++) set(x, y, GROUND);
+      for (let x = x0; x < x1; x++) for (let y = groundY; y < h; y++) set(x, y, GROUND);
     },
     stump(x, height) {
-      for (let i = 1; i <= height; i++) set(x, GROUND_Y - i, STUMP);
+      for (let i = 1; i <= height; i++) set(x, groundY - i, STUMP);
     },
     hay(x, y, len = 1) {
       for (let i = 0; i < len; i++) set(x + i, y, HAY);
@@ -47,16 +48,21 @@ function builder(w) {
     enemy(kind, x, y) {
       spawns.push({ kind, x, y });
     },
+    life(x, y) {
+      lives.push({ x, y, taken: false });
+    },
     // Fills in totals; the exit wants about half of all collectibles
     finish(extra) {
       const total = coins.length + Object.values(crates).filter((c) => c === 'jug').length;
       return {
         w,
         h,
+        groundY,
         tiles,
         crates,
         coins,
         spawns,
+        lives,
         startX: 2,
         totalJugs: total,
         goalJugs: Math.round(total * 0.5),
@@ -149,7 +155,7 @@ function buildHoller() {
   jugs(112, 2, 3);
   jugs(117, 2, 3);
   jugs(122, 2, 4);
-  jugs(110.5, 1, 1);
+  B.life(110.5, 1); // 1UP above the gap
   enemy('bee', 114, 1.8);
 
   // Pit #4 (3 wide)
@@ -250,6 +256,7 @@ function buildAlienRanch() {
   enemy('tentacle', 117);
   jugs(108, 5, 4);
   jugs(121, 6, 3);
+  B.life(113.5, 1.4); // 1UP above the gap in the ledge
 
   // Home stretch to the Time Booth
   enemy('alien', 129);
@@ -339,6 +346,7 @@ function buildMedieval() {
   jugs(104, 7, 3);
   jugs(110, 7, 3);
   jugs(118, 6, 3);
+  B.life(111.5, 1.4); // 1UP above the gap in the rampart
 
   // Castle yard
   enemy('witch', 126);
@@ -361,14 +369,145 @@ function buildMedieval() {
     collectible: 'coin',
     goalKind: 'castle',
     boss: true,
+    afterScene: 'wizard',
     checkpointX: 62,
     goalX: 161,
     gearPool: ['sword', 'shield', 'knightHelm', 'plate'],
   });
 }
 
-export const LEVEL_COUNT = 3;
-const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval];
+// ---------------------------------------------------------------------------
+// Level 4: The Wizard's Fridge. A single-screen climb in the Donkey Kong style:
+// zig-zag girders, rolling barrels, and Honkey Kong guarding the fridge at the top.
+function buildTower() {
+  const H = 14;
+  const GY = 12;
+  const B = builder(30, { h: H, groundY: GY });
+  const { tiles } = B;
+  B.ground(0, 30);
+  const girder = (x0, x1, y) => {
+    for (let x = x0; x <= x1; x++) tiles[y][x] = HAY;
+  };
+  girder(0, 26, 9); // gap at the right end
+  girder(3, 29, 6); // gap at the left end
+  girder(0, 26, 3); // gap at the right end; Honkey and the fridge are up here
+
+  B.enemy('honkey', 1.2, 3); // stands on the top girder
+  B.life(1, 11); // 1UP in the barrel graveyard at the bottom left (risky!)
+
+  return B.finish({
+    id: 4,
+    name: "The Wizard's Fridge",
+    theme: 'tower',
+    collectible: 'none',
+    goalKind: 'fridge',
+    goalX: 5.6,
+    goalFloor: 3,
+    checkpointX: 14,
+    checkpointFloor: 6,
+    startX: 3,
+    goalJugs: 0,
+    totalJugs: 0,
+    winScene: 'fridge',
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Level 5: The Pagoda. Ninja cats and samurai cats, then Max, the big burly tabby.
+function buildPagoda() {
+  const B = builder(175);
+  const { ground, stump, hay, crate, jugs, enemy } = B;
+
+  [[0, 30], [34, 60], [63, 90], [94, 120], [123, 175]].forEach(([a, b]) => ground(a, b));
+
+  // Courtyard
+  crate(10, 5, 'jug');
+  hay(11, 5);
+  crate(12, 5, 'shine');
+  hay(13, 5);
+  crate(14, 5, 'jug');
+  jugs(7, 7, 3);
+  enemy('ninja', 20);
+  enemy('samurai', 25);
+  jugs(18, 7, 4);
+  jugs(30, 6, 4);
+
+  // Garden bridge
+  enemy('ninja', 38);
+  stump(41, 2); // stone lantern
+  enemy('samurai', 46);
+  crate(48, 5, 'swarm:crow');
+  hay(49, 5);
+  crate(50, 5, 'jug');
+  jugs(36, 7, 3);
+  jugs(53, 7, 3);
+  enemy('crow', 59, 5.5);
+  jugs(58, 6, 3);
+
+  // Pagoda stairs
+  enemy('ninja', 67);
+  enemy('samurai', 72);
+  enemy('ninja', 77);
+  stump(82, 1);
+  stump(83, 2);
+  stump(84, 3);
+  stump(85, 2);
+  stump(86, 1);
+  jugs(83, 5, 3);
+  jugs(66, 7, 3);
+  jugs(74, 7, 3);
+  hay(91, 7, 2); // floating plank over the koi pond
+  jugs(91, 6, 2);
+
+  // Rooftops: climb the lantern, then run the pagoda roofs
+  crate(96, 5, 'jug');
+  hay(97, 5);
+  crate(98, 5, 'life');
+  stump(101, 3);
+  hay(103, 3, 3);
+  hay(108, 3, 3);
+  hay(113, 3, 3);
+  jugs(103, 2, 3);
+  jugs(108, 2, 3);
+  jugs(113, 2, 3);
+  enemy('samurai', 105);
+  enemy('ninja', 110);
+  enemy('crow', 109, 1.8);
+  enemy('samurai', 116);
+  jugs(106, 7, 4);
+  jugs(111, 7, 3);
+  jugs(118, 6, 3);
+
+  // Dojo yard
+  enemy('ninja', 127);
+  enemy('samurai', 131);
+  crate(133, 5, 'swarm:crow');
+  stump(135, 2);
+  enemy('ninja', 138);
+  enemy('samurai', 142);
+  jugs(125, 7, 4);
+  jugs(136, 5, 3);
+  jugs(140, 7, 3);
+
+  // Max's arena
+  enemy('max', 162);
+
+  return B.finish({
+    id: 5,
+    name: 'The Pagoda',
+    theme: 'japan',
+    collectible: 'fish',
+    goalKind: 'dojo',
+    boss: true,
+    bossScene: 'finale',
+    checkpointX: 62,
+    goalX: 172,
+    goalJugs: 0,
+  });
+}
+
+export const LEVEL_COUNT = 5;
+const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda];
 
 export function buildLevel(n = 1) {
   return BUILDERS[n - 1]();

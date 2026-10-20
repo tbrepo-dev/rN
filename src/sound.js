@@ -23,6 +23,10 @@ const MUSIC = {
   holler: { prog: ['G', 'G', 'C', 'G', 'D', 'D', 'G', 'G'], roll: [0, 3, 2, 1, 3, 2, 1, 2], bpm: 150, type: 'sawtooth', oct: 1, vol: 1 },
   alien: { prog: ['Am', 'Am', 'F', 'C', 'Am', 'F', 'G', 'E'], roll: [0, 2, 3, 2, 1, 3, 2, 3], bpm: 118, type: 'square', oct: 2, vol: 0.55 },
   medieval: { prog: ['Dm', 'Dm', 'Bb', 'C', 'Dm', 'Bb', 'Am', 'Dm'], roll: [0, 2, 1, 3, 2, 1, 3, 2], bpm: 104, type: 'triangle', oct: 1, vol: 1.7 },
+  // Honkey's tower: a jumpy, urgent ostinato
+  tower: { prog: ['Am', 'Am', 'E', 'E', 'Am', 'Am', 'F', 'E'], roll: [0, 3, 0, 3, 1, 3, 2, 3], bpm: 168, type: 'square', oct: 1, vol: 0.5 },
+  // Pagoda: koto-like plucks
+  japan: { prog: ['Am', 'Am', 'F', 'Am', 'Dm', 'Am', 'E', 'Am'], roll: [0, 2, 3, 1, 3, 2, 1, 2], bpm: 112, type: 'triangle', oct: 2, vol: 1.6 },
 };
 let tune = MUSIC.holler;
 let eighth = 60 / tune.bpm / 2;
@@ -129,6 +133,12 @@ const SFX = {
   gear: (t) => [523, 659, 784, 1047, 1319].forEach((f, i) => pluck(f, t + i * 0.06, 0.25, 0.12, 'triangle')),
   ammo: (t) => pluck(1568, t, 0.08, 0.08, 'triangle'),
   enemyshot: (t) => slide(600, 250, t, 0.12, 0.08, 'square'),
+  life: (t) => [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => pluck(f, t + i * 0.07, 0.25, 0.12, 'square')),
+  slam: (t) => {
+    slide(120, 40, t, 0.3, 0.3, 'triangle');
+    slide(90, 35, t + 0.04, 0.3, 0.2, 'sawtooth');
+  },
+  scene: (t) => pluck(660, t, 0.12, 0.08, 'triangle'),
   gameover: (t) => [330, 262, 196].forEach((f, i) => pluck(f, t + i * 0.25, 0.4, 0.14, 'triangle')),
 };
 

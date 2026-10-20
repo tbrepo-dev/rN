@@ -1,17 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Platform, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { createGame, step, STEP, SHINE_MAX, AMMO_MAX, GEAR, LEVEL_COUNT, nextLevel, startPlaying, loadLevel } from './engine/game';
-import { GROUND_Y } from './engine/level';
-import { Billy, Critter, Cob, Ray, Shot, Jug, GearItem, Tile, Ground, Emoji, Booth, CastleGate, gearEmoji } from './src/Sprites';
+import { createGame, step, STEP, SHINE_MAX, AMMO_MAX, GEAR, LEVEL_COUNT, continueGame, startPlaying, loadLevel, advanceScene, chooseScene, startScene } from './engine/game';
+import { Billy, Critter, Cob, Ray, Shot, Jug, OneUp, GearItem, Tile, Ground, Emoji, Booth, CastleGate, Fridge, gearEmoji } from './src/Sprites';
+import { SceneView, EndingView } from './src/Scenes';
 import { initAudio, play, toggleMute, isMuted, setMusicTheme } from './src/sound';
 
-const ROWS = 11; // tile rows visible on screen
 
 const THEME = {
   holler: { sky: '#7ec8e3', icon: '🏺', checkpoint: '📮', hills: ['#6aaa64', '#5b9a58'] },
   alien: { sky: '#170b3a', icon: '💎', checkpoint: '📡', hills: ['#2a2d6e', '#1f5a6b'] },
   medieval: { sky: '#e9a46b', icon: '🪙', checkpoint: '🚩', hills: ['#7d9a5a', '#667f4a'] },
+  tower: { sky: '#241a3f', icon: '🍺', checkpoint: '🔔', hills: ['#2d2150', '#2d2150'] },
+  japan: { sky: '#f6a5b0', icon: '🐟', checkpoint: '⛩️', hills: ['#b58aa5', '#9a7aa0'] },
 };
 
 const STORY = {
@@ -23,12 +24,22 @@ const STORY = {
     title: 'DARK AGES',
     text: "The Time Booth dumps Billy in the Middle Ages!\nGoblins, witches and trolls roam the road. Find a sword and shield, gather coins, and beat the Witch Queen to open the castle gate.",
   },
+  4: {
+    title: "THE WIZARD'S FRIDGE",
+    text: "Climb the girders to the top of the tower while Honkey Kong, the albino ape in overalls, rolls barrels down at you.\nJump them, shoot them, slash them or block them, then grab the wizard's beer from the fridge!",
+  },
+  5: {
+    title: 'THE PAGODA',
+    text: "The wizard's magic sends Billy east: pagodas, cherry blossoms and a LOT of cats.\nNinja cats throw stars, samurai cats lunge. And at the end of the road waits Max, the burliest, fattest tabby around. He's old, he's slow, and he's very hard to beat.",
+  },
 };
 
 // Static scenery that never changes: ground strips, tiles, trees, shack.
 const Terrain = React.memo(function Terrain({ tiles, level, ts, theme }) {
   const els = [];
   const w = level.w;
+  const ROWS = level.h;
+  const GROUND_Y = level.groundY;
   let runStart = null;
   for (let x = 0; x <= w; x++) {
     const isGround = x < w && tiles[GROUND_Y][x] === 1;
@@ -51,12 +62,22 @@ const DECOR = {
   holler: { items: [6, 20, 41, 63, 78, 97, 106, 127, 135, 147], ch: '🌲', size: 1.6, lift: 1.5 },
   alien: { items: [5, 17, 36, 49, 66, 76, 94, 111, 127, 140], ch: '🍄', size: 1.5, lift: 1.3 },
   medieval: { items: [6, 18, 38, 52, 66, 77, 98, 117, 127, 147], ch: '🔥', size: 1.0, lift: 1.0 },
+  tower: { items: [], ch: '', size: 1, lift: 1 },
+  japan: { items: [7, 19, 33, 47, 70, 80, 96, 119, 133, 150], ch: '🏮', size: 1.1, lift: 1.1 },
 };
 
 const Scenery = React.memo(function Scenery({ level, ts }) {
   const d = DECOR[level.theme];
+  const GROUND_Y = level.groundY;
   return (
     <>
+      {level.theme === 'japan' && (
+        <>
+          <Emoji ch="⛩️" x={-0.3} y={GROUND_Y - 3.2} size={3.4} ts={ts} />
+          <Emoji ch="🏯" x={level.checkpointX + 3} y={GROUND_Y - 2.6} size={2.8} ts={ts} />
+          <Emoji ch="🏯" x={level.goalX - 6} y={GROUND_Y - 3.8} size={4} ts={ts} />
+        </>
+      )}
       {level.theme === 'holler' && <Emoji ch="🏚️" x={-0.2} y={GROUND_Y - 2.4} size={2.6} ts={ts} />}
       {level.theme === 'alien' && (
         <>
@@ -68,7 +89,8 @@ const Scenery = React.memo(function Scenery({ level, ts }) {
       {d.items.map((x) => (
         <Emoji key={x} ch={d.ch} x={x} y={GROUND_Y - d.lift} size={d.size} ts={ts} />
       ))}
-      <Emoji ch={THEME[level.theme].checkpoint} x={level.checkpointX} y={GROUND_Y - 1} size={1} ts={ts} />
+      {level.theme !== 'tower' && <Emoji ch={THEME[level.theme].checkpoint} x={level.checkpointX} y={GROUND_Y - 1} size={1} ts={ts} />}
+      {level.theme === 'tower' && <Emoji ch={THEME.tower.checkpoint} x={level.checkpointX} y={level.checkpointFloor - 1} size={1} ts={ts} />}
       {level.goalKind === 'truck' && <Emoji ch="🛻" x={level.goalX - 0.5} y={GROUND_Y - 1.6} size={2.2} ts={ts} flip />}
     </>
   );
@@ -77,10 +99,13 @@ const Scenery = React.memo(function Scenery({ level, ts }) {
 // Stars, planets and hills; they scroll slower than the ground for depth
 const STARS = Array.from({ length: 46 }, (_, i) => ({ x: (i * 97) % 100, y: (i * 53) % 62, s: 1 + (i % 3) }));
 
-function Background({ camX, ts, theme, time }) {
+function Background({ camX, ts, theme, time, groundY, level }) {
   const th = THEME[theme];
+  const GROUND_Y = groundY;
   const hills =
-    theme === 'holler'
+    theme === 'tower'
+      ? []
+      : theme === 'holler'
       ? [{ x: 0, w: 14, h: 5 }, { x: 11, w: 18, h: 7 }, { x: 30, w: 15, h: 5.5 }, { x: 44, w: 20, h: 7.5 }]
       : [{ x: 0, w: 16, h: 4 }, { x: 13, w: 20, h: 6 }, { x: 34, w: 16, h: 4.5 }, { x: 48, w: 22, h: 6.5 }];
   const clouds = [3, 12, 22, 33, 41];
@@ -95,6 +120,28 @@ function Background({ camX, ts, theme, time }) {
           <View style={{ position: 'absolute', left: 6 * ts - camX * ts * 0.04, top: ts * 1, width: ts * 3.2, height: ts * 3.2, borderRadius: ts * 1.6, backgroundColor: '#7b4fd1' }} />
           <View style={{ position: 'absolute', left: 4.4 * ts - camX * ts * 0.04, top: ts * 2.2, width: ts * 6.4, height: ts * 0.5, borderRadius: ts, borderWidth: 3, borderColor: 'rgba(200,170,255,0.7)' }} />
           <View style={{ position: 'absolute', left: 16 * ts - camX * ts * 0.06, top: ts * 1.4, width: ts * 1.1, height: ts * 1.1, borderRadius: ts, backgroundColor: '#e8e3ff' }} />
+        </>
+      )}
+      {theme === 'tower' && (
+        <>
+          {STARS.map((s, i) => (
+            <View key={i} style={{ position: 'absolute', left: `${s.x}%`, top: `${s.y}%`, width: s.s + 1, height: s.s + 1, borderRadius: 3, backgroundColor: '#cbb8ff', opacity: 0.35 + 0.35 * Math.sin(time * 2 + i) }} />
+          ))}
+          {[0.16, 0.5, 0.84].map((f) => (
+            <View key={f} style={{ position: 'absolute', left: `${f * 100 - 6}%`, top: '8%', width: '12%', height: '38%', borderTopLeftRadius: 80, borderTopRightRadius: 80, backgroundColor: '#32265c', borderWidth: 3, borderColor: '#4d3f86' }} />
+          ))}
+          <View style={{ position: 'absolute', left: '47%', top: '4%', width: ts * 1.4, height: ts * 1.4, borderRadius: ts, backgroundColor: '#efe9ff' }} />
+        </>
+      )}
+      {theme === 'japan' && (
+        <>
+          <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: ts * 4, backgroundColor: '#ffd3a8', opacity: 0.55 }} />
+          <View style={{ position: 'absolute', left: 10 * ts - camX * ts * 0.04, top: ts * 1.2, width: ts * 3.4, height: ts * 3.4, borderRadius: ts * 1.7, backgroundColor: '#ff5a4d' }} />
+          <View style={{ position: 'absolute', left: 20 * ts - camX * ts * 0.1, top: GROUND_Y * ts - ts * 6, width: 0, height: 0, borderLeftWidth: ts * 6, borderRightWidth: ts * 6, borderBottomWidth: ts * 6.2, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#8e78a8' }} />
+          <View style={{ position: 'absolute', left: 20 * ts + ts * 3.2 - camX * ts * 0.1, top: GROUND_Y * ts - ts * 6, width: 0, height: 0, borderLeftWidth: ts * 2.8, borderRightWidth: ts * 2.8, borderBottomWidth: ts * 2.5, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#fff' }} />
+          {Array.from({ length: 12 }, (_, i) => (
+            <Text key={i} style={{ position: 'absolute', left: `${((i * 83 + time * 22) % 104) - 2}%`, top: `${(i * 37 + time * 32) % 100}%`, fontSize: 14 + (i % 3) * 4, opacity: 0.8 }}>🌸</Text>
+          ))}
         </>
       )}
       {theme === 'medieval' && (
@@ -131,8 +178,6 @@ function Background({ camX, ts, theme, time }) {
 
 export default function App() {
   const { width, height } = useWindowDimensions();
-  const ts = height / ROWS;
-  const viewW = width / ts;
 
   const [screen, setScreen] = useState('title'); // title | play
   const [, setFrame] = useState(0);
@@ -142,10 +187,17 @@ export default function App() {
   const latchRef = useRef({ jump: false, throw: false, rush: false });
   if (!gameRef.current) gameRef.current = createGame();
   const g = gameRef.current;
-  g.viewW = viewW;
+  const level = g.level;
+  const topPad = level.h > 11 ? 54 : 0; // tall levels (the tower) get a HUD strip and zoom out to fit
+  const ts = (height - topPad) / level.h;
+  const viewW = width / ts;
+  const padX = Math.max(0, (viewW - level.w) / 2); // narrow levels are centred
+  const GROUND_Y = level.groundY;
+  g.viewW = Math.min(viewW, level.w);
   if (Platform.OS === 'web') {
     window.__billy = g; // handy for debugging in the browser
     window.__loadLevel = (n) => loadLevel(gameRef.current, n);
+    window.__scene = (id) => startScene(gameRef.current, id);
   }
 
   const start = () => {
@@ -208,9 +260,8 @@ export default function App() {
     };
   }, []);
 
-  const { level } = g;
   const p = g.player;
-  const camPx = -g.camX * ts;
+  const camPx = (padX - g.camX) * ts;
   const th = THEME[theme];
 
   // Button layout (shared by hit-testing and drawing). The action buttons hug the right
@@ -255,28 +306,39 @@ export default function App() {
   const meter = g.shine / SHINE_MAX;
   const rushing = p.rush > 0;
   const inp = inputRef.current;
-  const boss = g.enemies.find((e) => e.kind === 'boss' && e.alive && e.awake);
+  const boss = g.enemies.find((e) => (e.kind === 'boss' || e.kind === 'max') && e.alive && e.awake);
+  const bossInfo = boss && (boss.kind === 'max' ? { name: '🐈 MAX THE TABBY', hp: 30, color: '#e8873a' } : { name: '👑 WITCH QUEEN', hp: 14, color: '#b04bff' });
   const armor = Math.max(0, p.armor);
   const useRay = g.gear.raygun && g.ammo > 0;
   const gearIcons = Object.keys(g.gear).filter((k) => g.gear[k]);
   const bossAlive = level.boss && g.enemiesEnabled && !g.bossDefeated;
   const signText =
-    level.goalKind === 'castle' && bossAlive ? '👑 Beat the Witch Queen' : `${th.icon} ${Math.min(g.jugs, level.goalJugs)}/${level.goalJugs}`;
+    level.goalKind === 'castle' && bossAlive
+      ? '👑 Beat the Witch Queen'
+      : level.goalKind === 'fridge'
+      ? "🍺 The wizard's beer"
+      : level.goalKind === 'dojo'
+      ? ''
+      : `${th.icon} ${Math.min(g.jugs, level.goalJugs)}/${level.goalJugs}`;
 
   return (
     <View style={[styles.root, { backgroundColor: th.sky }]} onTouchStart={onTouches} onTouchMove={onTouches} onTouchEnd={onTouches} onTouchCancel={onTouches}>
       <StatusBar hidden />
-      <Background camX={g.camX} ts={ts} theme={theme} time={g.time} />
+      <Background camX={g.camX} ts={ts} theme={theme} time={g.time} groundY={GROUND_Y} level={level} />
 
-      <View style={{ position: 'absolute', left: 0, top: 0, width: level.w * ts, height: height, transform: [{ translateX: camPx }] }} pointerEvents="none">
+      <View style={{ position: 'absolute', left: 0, top: topPad, width: level.w * ts, height: height - topPad, transform: [{ translateX: camPx }] }} pointerEvents="none">
         <Scenery level={level} ts={ts} />
         <Terrain tiles={g.tiles} level={level} ts={ts} version={g.version} theme={theme} />
         {level.goalKind === 'booth' && <Booth x={level.goalX - 0.15} y={GROUND_Y - 2.6} ts={ts} ready={g.jugs >= level.goalJugs} t={g.time} />}
         {level.goalKind === 'castle' && <CastleGate x={level.goalX - 0.9} y={GROUND_Y - 2.4} ts={ts} open={!bossAlive} />}
+        {level.goalKind === 'fridge' && <Fridge x={level.goalX - 0.7} y={level.goalFloor - 2.3} ts={ts} t={g.time} />}
+        {level.lives.map((l, i) => !l.taken && <OneUp key={`l${i}`} x={l.x} y={l.y} ts={ts} t={g.time} />)}
         {g.coins.map((c, i) => !c.taken && c.x > g.camX - 1 && c.x < g.camX + viewW + 1 && <Jug key={i} x={c.x} y={c.y} ts={ts} t={g.time} kind={level.collectible} />)}
         {g.items.map((it, i) =>
           it.kind === 'gear' ? (
             <GearItem key={`i${i}`} it={it} ts={ts} t={g.time} />
+          ) : it.kind === 'life' ? (
+            <OneUp key={`i${i}`} x={it.x - 0.1} y={it.y - 0.1} ts={ts} t={g.time} />
           ) : it.kind === 'jug' && it.age > 8 && Math.floor(it.age * 8) % 2 === 0 ? null : (
             <Jug key={`i${i}`} x={it.x - 0.1} y={it.y - 0.1} ts={ts} t={it.kind === 'jug' ? 0 : g.time} glow={it.kind === 'shine'} kind={it.kind === 'jug' ? level.collectible : 'jug'} />
           )
@@ -300,11 +362,12 @@ export default function App() {
         )}
       </View>
 
+      {topPad > 0 && <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: topPad, backgroundColor: 'rgba(0,0,0,0.4)' }} pointerEvents="none" />}
       {/* HUD */}
       <View style={styles.hud} pointerEvents="none">
-        <Text style={styles.hudText}>{'🤠'.repeat(Math.max(0, hud.lives))}</Text>
+        <Text style={styles.hudText}>{hud.lives > 4 ? `🤠 ×${hud.lives}` : '🤠'.repeat(Math.max(0, hud.lives))}</Text>
         <Text style={styles.hudText}>
-          {th.icon} {hud.jugs}/{level.goalJugs}
+          {level.collectible === 'none' ? '' : level.goalJugs > 0 ? `${th.icon} ${hud.jugs}/${level.goalJugs}` : `${th.icon} ${hud.jugs}`}
         </Text>
         <Text style={styles.hudText}>{String(hud.score).padStart(6, '0')}</Text>
       </View>
@@ -315,11 +378,11 @@ export default function App() {
           <Text style={styles.hudSmall}>{gearIcons.map(gearEmoji).join(' ')}</Text>
         </View>
       )}
-      {boss && (
+      {boss && bossInfo && (
         <View style={styles.bossBar} pointerEvents="none">
-          <Text style={styles.bossName}>👑 WITCH QUEEN</Text>
+          <Text style={styles.bossName}>{bossInfo.name}</Text>
           <View style={styles.bossTrack}>
-            <View style={[styles.bossFill, { width: `${Math.max(0, boss.hp / 14) * 100}%` }]} />
+            <View style={[styles.bossFill, { width: `${Math.max(0, boss.hp / bossInfo.hp) * 100}%`, backgroundColor: bossInfo.color }]} />
           </View>
         </View>
       )}
@@ -335,7 +398,7 @@ export default function App() {
       </Pressable>
 
       {/* On-screen controls */}
-      {screen === 'play' && (
+      {screen === 'play' && (g.mode === 'playing' || g.mode === 'dying') && (
         <View style={styles.controls} pointerEvents="none">
           <View style={[styles.btn, { left: leftC.x - leftC.r, opacity: inp.left ? 0.8 : 0.4 }]}><Text style={styles.btnText}>◀</Text></View>
           <View style={[styles.btn, { left: rightC.x - rightC.r, opacity: inp.right ? 0.8 : 0.4 }]}><Text style={styles.btnText}>▶</Text></View>
@@ -388,9 +451,15 @@ export default function App() {
           <Text style={[styles.sub, { maxWidth: 560 }]}>{STORY[g.levelNo]?.text}</Text>
           {g.levelNo === 2 && <Text style={styles.hint}>Aliens drop ⚡ ammo for the ray gun.{'\n'}Your 🌽 button fires the ray gun whenever you have ammo.</Text>}
           {g.levelNo === 3 && <Text style={styles.hint}>🗡️ Fire slashes enemies up close, then shoots.{'\n'}Hold 🛡️ to block from the front.</Text>}
+          {g.levelNo === 4 && <Text style={styles.hint}>Hug the edge of a girder and jump up through the gap. Barrels roll toward you!{'\n'}Shoot or slash them, or hold 🛡️ to block.</Text>}
+          {g.levelNo === 5 && <Text style={styles.hint}>Jump Max's shockwaves, and hit him while he's winded: he takes DOUBLE damage.{'\n'}Grab the 1UP barrel on the rooftops.</Text>}
           <Text style={styles.tap}>Tap to begin</Text>
         </Pressable>
       )}
+      {screen === 'play' && g.mode === 'scene' && (
+        <SceneView g={g} width={width} height={height} onAdvance={() => advanceScene(g)} onChoose={(i) => chooseScene(g, i)} />
+      )}
+      {screen === 'play' && g.mode === 'ending' && <EndingView g={g} width={width} height={height} onRestart={start} />}
       {screen === 'play' && g.mode === 'gameover' && (
         <Pressable style={styles.overlay} onPress={start}>
           <Text style={styles.title}>GAME OVER</Text>
@@ -399,12 +468,12 @@ export default function App() {
         </Pressable>
       )}
       {screen === 'play' && g.mode === 'won' && (
-        <Pressable style={styles.overlay} onPress={() => (g.levelNo < LEVEL_COUNT ? nextLevel(g) : start())}>
-          <Text style={styles.title}>{g.levelNo < LEVEL_COUNT ? 'LEVEL COMPLETE!' : 'YEEHAW! THE END'}</Text>
+        <Pressable style={styles.overlay} onPress={() => continueGame(g)}>
+          <Text style={styles.title}>LEVEL COMPLETE!</Text>
           <Text style={styles.sub}>
             {g.levelNo === 1 && 'A flying saucer swoops in and zaps the truck...'}
             {g.levelNo === 2 && 'The Time Booth hums, flashes... and away he goes!'}
-            {g.levelNo === 3 && 'The gate swings open. Billy rules the castle in full knight-alien armor!'}
+            {g.levelNo === 3 && 'The gate swings open... and a puff of purple smoke appears.'}
             {'\n'}
             {th.icon} {g.jugs}   Score {g.score}
           </Text>
@@ -413,8 +482,8 @@ export default function App() {
               Gear: {g.loot.map((l) => `${gearEmoji(l.name)} ${GEAR[l.name].name}${l.found ? '' : ' (from the loot chest)'}`).join('  •  ')}
             </Text>
           )}
-          {g.levelNo === LEVEL_COUNT && <Text style={styles.hint}>🪖 {GEAR.knightHelm.name}  🧥 {GEAR.plate.name}  🗡️ Sword  🛡️ Shield  🔫 Ray gun  📡 Antenna</Text>}
-          <Text style={styles.tap}>{g.levelNo < LEVEL_COUNT ? 'Tap for the next level' : 'Tap to play again'}</Text>
+          {g.levelNo === 3 && <Text style={styles.hint}>Billy now wears full knight-alien armor with a ray gun, sword and shield.</Text>}
+          <Text style={styles.tap}>Tap to continue</Text>
         </Pressable>
       )}
     </View>

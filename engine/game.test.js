@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, step, STEP, SMALL_H, loadLevel, nextLevel, startPlaying, equip, armorMax, LEVEL_COUNT } from './game.js';
+import { createGame, step, STEP, SMALL_H, loadLevel, nextLevel, startPlaying, equip, armorMax, LEVEL_COUNT, startScene, advanceScene, chooseScene, continueGame, addLife } from './game.js';
+import { SCENES } from './story.js';
 import { GROUND_Y, CRATE, USED } from './level.js';
 
 const none = { left: false, right: false, jump: false };
@@ -155,7 +156,7 @@ test('shine crate grows Billy', () => {
 });
 
 // A dumb bot: hold right, hop obstacles and pits. Proves each level's terrain is completable.
-for (const levelNo of [1, 2, 3]) {
+for (const levelNo of [1, 2, 3, 5]) {
   test(`level ${levelNo} is beatable by a simple bot (terrain only)`, () => {
     const g = createGame({ enemies: false, level: levelNo });
     g.viewW = 20;
@@ -172,11 +173,16 @@ for (const levelNo of [1, 2, 3]) {
       const rescue = !p.onGround && p.airJumps > 0 && p.vy > 2 && p.y + p.h > 7 && !g.tiles[GROUND_Y]?.[Math.floor(p.x + p.w / 2)];
       return { left: false, right: true, jump: want || (!p.onGround && p.vy < 0 && p.jumping) || (rescue && !g.prevJump) };
     };
-    while (g.mode === 'playing' && t < 120) {
+    while (g.mode === 'playing' && t < 120 && !(levelNo === 5 && g.player.x > g.level.goalX - 12)) {
       step(g, bot(), STEP);
       t += STEP;
     }
-    assert.equal(g.mode, 'won', `bot ended in ${g.mode} at x=${g.player.x.toFixed(1)} t=${t.toFixed(1)}`);
+    if (levelNo === 5) {
+      // no goal gate here: Max's defeat ends the level, so just reach his arena alive
+      assert.ok(g.player.x > g.level.goalX - 14 && g.mode === 'playing', `bot ended in ${g.mode} at x=${g.player.x.toFixed(1)}`);
+    } else {
+      assert.equal(g.mode, 'won', `bot ended in ${g.mode} at x=${g.player.x.toFixed(1)} t=${t.toFixed(1)}`);
+    }
   });
 }
 
@@ -327,7 +333,7 @@ test('levels carry gear, ammo, score and lives forward', () => {
   assert.equal(g.mode, 'playing');
   nextLevel(g);
   assert.equal(g.levelNo, 3);
-  assert.equal(LEVEL_COUNT, 3);
+  assert.equal(LEVEL_COUNT, 5);
 });
 
 test('killing aliens drops ray gun ammo; the antenna helmet doubles it', () => {
@@ -563,4 +569,279 @@ test('gear barrels exist where Billy can bump them', () => {
     const gearBarrels = Object.entries(g.level.crates).filter(([, v]) => v.startsWith('gear:')).map(([, v]) => v.slice(5));
     assert.deepEqual(gearBarrels.sort(), [...g.level.gearPool].sort());
   }
+});
+
+// ---- Lives ----------------------------------------------------------------
+test('1UP pickups, barrels and every 25 collectibles all give extra lives', () => {
+  const g = createGame({ enemies: false });
+  const l = g.level.lives[0];
+  assert.ok(l, 'each level has a hidden 1UP');
+  Object.assign(g.player, { x: l.x, y: l.y - 0.3, vy: 0 });
+  step(g, none);
+  assert.equal(g.lives, 4);
+  assert.ok(l.taken);
+  // every 25th collectible
+  g.collected = 24;
+  const c = g.coins.find((x) => !x.taken);
+  Object.assign(g.player, { x: c.x, y: c.y, vy: 0 });
+  step(g, none);
+  assert.equal(g.lives, 5);
+  // a life barrel (level 5)
+  const g5 = createGame({ enemies: false, level: 5 });
+  const [bx, by] = Object.entries(g5.level.crates).find(([, v]) => v === 'life')[0].split(',').map(Number);
+  Object.assign(g5.player, { x: bx + 0.15, y: by + 1.1, vy: -15 });
+  step(g5, none);
+  assert.equal(g5.items.at(-1).kind, 'life');
+  Object.assign(g5.player, { x: g5.items.at(-1).x, y: g5.items.at(-1).y });
+  step(g5, none);
+  assert.equal(g5.lives, 4);
+});
+
+test('lives are capped at nine (extra 1UPs turn into points)', () => {
+  const g = createGame({ enemies: false });
+  g.lives = 9;
+  const s = g.score;
+  addLife(g, 0, 0);
+  assert.equal(g.lives, 9);
+  assert.equal(g.score, s + 1000);
+});
+
+test('every level has a way to get lives', () => {
+  for (const n of [1, 2, 3, 4, 5]) {
+    const g = createGame({ enemies: false, level: n });
+    const barrelLife = Object.values(g.level.crates).includes('life');
+    assert.ok(g.level.lives.length > 0 || barrelLife || g.level.totalJugs >= 25, `level ${n}`);
+  }
+});
+
+// ---- Cutscenes -------------------------------------------------------------
+test('beating the Witch Queen leads (via the level-complete screen) to the wizard cutscene, then level 4', () => {
+  const g = createGame({ enemies: false, level: 3 });
+  g.jugs = g.level.goalJugs;
+  Object.assign(g.player, { x: g.level.goalX, y: GROUND_Y - SMALL_H, vy: 0 });
+  run(g, none, 0.3);
+  assert.equal(g.mode, 'won');
+  continueGame(g);
+  assert.equal(g.mode, 'scene');
+  assert.equal(g.scene.id, 'wizard');
+  const n = SCENES.wizard.lines.length;
+  for (let i = 0; i < n; i++) advanceScene(g);
+  assert.equal(g.levelNo, 4);
+  assert.equal(g.mode, 'intro');
+});
+
+test('every scene line has a speaker and every scene connects to something', () => {
+  for (const [id, sc] of Object.entries(SCENES)) {
+    assert.ok(sc.lines.length > 0, id);
+    for (const l of sc.lines) assert.ok(l.who && l.text, `${id}: ${JSON.stringify(l)}`);
+    assert.ok(sc.then || sc.choice, `${id} has nowhere to go`);
+    for (const o of sc.choice || []) assert.ok(SCENES[o.scene], `${id} -> ${o.scene}`);
+    if (sc.then?.scene) assert.ok(SCENES[sc.then.scene]);
+  }
+});
+
+test('the finale offers the red and blue pill with the right endings', () => {
+  const g = createGame({ enemies: false, level: 5 });
+  startScene(g, 'finale');
+  const lines = SCENES.finale.lines.length;
+  for (let i = 0; i < lines + 3; i++) advanceScene(g); // can't advance past the choice
+  assert.equal(g.mode, 'scene');
+  assert.equal(g.scene.id, 'finale');
+  assert.equal(g.scene.idx, lines - 1);
+  assert.deepEqual(SCENES.finale.choice.map((c) => c.color), ['blue', 'red']);
+  // blue: happy ending
+  chooseScene(g, 0);
+  assert.equal(g.scene.id, 'happy');
+  for (let i = 0; i < SCENES.happy.lines.length; i++) advanceScene(g);
+  assert.equal(g.mode, 'ending');
+  assert.equal(g.ending, 'happy');
+  // red: to be continued
+  const g2 = createGame({ enemies: false, level: 5 });
+  startScene(g2, 'finale');
+  for (let i = 0; i < lines; i++) advanceScene(g2);
+  chooseScene(g2, 1);
+  for (let i = 0; i < SCENES.tbc.lines.length; i++) advanceScene(g2);
+  assert.equal(g2.mode, 'ending');
+  assert.equal(g2.ending, 'tbc');
+});
+
+// ---- Level 4: Honkey Kong ---------------------------------------------------
+test("Honkey Kong rolls barrels along the girders, and they zig-zag down", () => {
+  const g = createGame({ level: 4 });
+  g.viewW = 40;
+  g.player.invuln = 999;
+  const honkey = g.enemies.find((e) => e.kind === 'honkey');
+  assert.ok(honkey);
+  assert.equal(Math.round(honkey.y + honkey.h), 3, 'Honkey stands on the top girder');
+  let spawned = 0;
+  const floorsSeen = new Set();
+  let flipped = false;
+  const lastDir = new Map();
+  for (let i = 0; i < 60 * 14; i++) {
+    g.player.x = 28;
+    g.player.y = 12 - SMALL_H;
+    g.player.vx = 0;
+    step(g, none);
+    for (const b of g.enemies.filter((e) => e.kind === 'barrel' && e.alive)) {
+      if (!b.seen) {
+        b.seen = true;
+        spawned++;
+      }
+      if (b.onGround) floorsSeen.add(Math.round(b.y + b.h));
+      if (lastDir.has(b) && lastDir.get(b) !== b.dir) flipped = true;
+      lastDir.set(b, b.dir);
+    }
+  }
+  assert.ok(spawned >= 5, `barrels thrown: ${spawned}`);
+  assert.ok(flipped, 'barrels reverse after dropping to the next girder');
+  assert.ok(floorsSeen.has(3) && floorsSeen.has(6) && floorsSeen.has(9), [...floorsSeen].join());
+  assert.equal(g.mode, 'playing', 'invulnerable test player survives');
+});
+
+test('barrels hurt, but a shield deflects them and they can be shot', () => {
+  const g = createGame({ level: 4 });
+  const honkey = g.enemies.find((e) => e.kind === 'honkey');
+  honkey.shootT = 0.01;
+  Object.assign(g.player, { x: 10, y: 3 - SMALL_H, vy: 0 });
+  step(g, none);
+  const barrel = g.enemies.find((e) => e.kind === 'barrel');
+  assert.ok(barrel);
+  Object.assign(barrel, { x: g.player.x + 0.5, y: g.player.y + 0.1 });
+  g.player.facing = 1;
+  g.player.invuln = 0;
+  step(g, none);
+  assert.equal(g.mode, 'dying', 'rolling barrel kills small Billy');
+
+  const g2 = createGame({ level: 4 });
+  g2.gear.raygun = true;
+  g2.ammo = 3;
+  g2.enemies.find((e) => e.kind === 'honkey').shootT = 0.01;
+  Object.assign(g2.player, { x: 12, y: 3 - SMALL_H, vy: 0, facing: -1 });
+  g2.player.onGround = false;
+  step(g2, none);
+  const b2 = g2.enemies.find((e) => e.kind === 'barrel');
+  Object.assign(b2, { x: 5, y: 3 - b2.h });
+  run(g2, none, 0.1);
+  step(g2, { ...none, throw: true });
+  assert.equal(g2.rays.length, 1);
+});
+
+test('the tower can be climbed: ground -> girder 9 -> 6 -> 3 -> fridge', () => {
+  const g = createGame({ level: 4, enemies: false });
+  g.viewW = 30;
+  let t = 0;
+  let stage = 0;
+  const feet = () => g.player.y + g.player.h;
+  // Up through each gap: hug the edge of the girder above while jumping, then slide over the top
+  const bot = () => {
+    const p = g.player;
+    if (p.onGround) stage = { 12: 0, 9: 1, 6: 2, 3: 3 }[Math.round(feet())] ?? stage;
+    const rising = !p.onGround && p.vy < 0;
+    if (stage === 0 || stage === 2) {
+      return p.onGround ? (p.x < 27.3 ? { ...none, right: true } : { ...none, left: true, jump: true }) : { ...none, left: true, jump: rising };
+    }
+    if (stage === 1) {
+      return p.onGround ? (p.x > 2.2 ? { ...none, left: true } : { ...none, right: true, jump: true }) : { ...none, right: true, jump: rising };
+    }
+    return { ...none, left: true };
+  };
+  while (g.mode === 'playing' && t < 60) {
+    step(g, bot(), STEP);
+    t += STEP;
+  }
+  assert.equal(g.mode, 'scene', `ended ${g.mode} at x=${g.player.x.toFixed(1)} feet=${feet().toFixed(1)} stage=${stage} t=${t.toFixed(1)}`);
+  assert.equal(g.scene.id, 'fridge');
+  for (let i = 0; i < SCENES.fridge.lines.length; i++) advanceScene(g);
+  assert.equal(g.levelNo, 5);
+});
+
+test('level 4 checkpoint only counts on the right girder, and Honkey survives a respawn', () => {
+  const g = createGame({ level: 4 });
+  Object.assign(g.player, { x: 15, y: 12 - SMALL_H, vy: 0 });
+  step(g, none);
+  assert.equal(g.checkpointHit, false, 'walking past on the ground floor does not count');
+  Object.assign(g.player, { x: 15, y: 6 - SMALL_H, vy: 0 });
+  run(g, none, 0.1);
+  assert.equal(g.checkpointHit, true);
+  assert.equal(g.checkpointFloor, 6);
+  g.player.invuln = 0;
+  g.mode = 'dying';
+  g.deathT = 2;
+  step(g, none);
+  assert.equal(g.mode, 'playing');
+  assert.ok(Math.abs(g.player.y + g.player.h - 6) < 0.01, 'respawns on girder 6');
+  assert.ok(g.enemies.some((e) => e.kind === 'honkey'));
+});
+
+// ---- Level 5: pagoda, Max ---------------------------------------------------
+test('ninja cats throw shuriken and samurai cats lunge', () => {
+  const g = createGame({ level: 5 });
+  const ninja = g.enemies.find((e) => e.kind === 'ninja');
+  ninja.awake = true;
+  ninja.shootT = 0.01;
+  place(g, ninja, -6);
+  step(g, none);
+  assert.ok(g.shots.some((s) => s.kind === 'star'));
+
+  const sam = g.enemies.find((e) => e.kind === 'samurai');
+  sam.awake = true;
+  sam.cd = 0;
+  const seen = new Set();
+  for (let i = 0; i < 90; i++) {
+    Object.assign(g.player, { x: sam.x - 2, y: GROUND_Y - SMALL_H, vy: 0, invuln: 99 });
+    step(g, none);
+    seen.add(sam.state);
+  }
+  assert.ok(seen.has('wind') && seen.has('dash'), [...seen].join());
+  assert.equal(sam.hp, 3);
+});
+
+test('Max belly-slams, sending shockwaves along the floor, then rests', () => {
+  const g = createGame({ level: 5 });
+  const max = g.enemies.find((e) => e.kind === 'max');
+  assert.equal(max.hp, 30);
+  max.awake = true;
+  max.cd = 0;
+  g.viewW = 30;
+  const states = new Set();
+  let waves = false;
+  for (let i = 0; i < 60 * 8; i++) {
+    Object.assign(g.player, { x: max.x - 5, y: GROUND_Y - SMALL_H, vy: 0, vx: 0, invuln: 99 });
+    step(g, none);
+    states.add(max.state);
+    if (g.shots.some((s) => s.kind === 'wave')) waves = true;
+  }
+  assert.ok(['wind', 'slam', 'rest'].every((s) => states.has(s)), [...states].join());
+  assert.ok(waves, 'shockwaves');
+});
+
+test('Max takes double damage while resting and his defeat starts the finale', () => {
+  const g = createGame({ level: 5 });
+  g.gear.sword = true;
+  const max = g.enemies.find((e) => e.kind === 'max');
+  max.awake = true;
+  max.state = 'walk';
+  max.cd = 99;
+  Object.assign(g.player, { x: max.x - 1.5, y: GROUND_Y - SMALL_H, vy: 0, facing: 1, invuln: 999 });
+  step(g, { ...none, throw: true });
+  assert.equal(max.hp, 28, 'sword does 2 normally');
+  max.iframes = 0;
+  max.state = 'rest';
+  max.stateT = 99;
+  g.player.slash = 0;
+  g.player.throwCd = 0;
+  g.prevThrow = false;
+  step(g, { ...none, throw: true });
+  assert.equal(max.hp, 24, 'and 4 while he is winded');
+  max.iframes = 0;
+  max.hp = 1;
+  g.player.slash = 0;
+  g.player.throwCd = 0;
+  g.prevThrow = false;
+  step(g, { ...none, throw: true });
+  assert.equal(max.alive, false);
+  assert.ok(g.bossDefeated);
+  run(g, none, 2.2);
+  assert.equal(g.mode, 'scene');
+  assert.equal(g.scene.id, 'finale');
 });

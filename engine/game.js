@@ -1,4 +1,5 @@
-import { buildLevel, LEVEL_COUNT, EMPTY, CRATE, USED, GROUND_Y } from './level.js';
+import { buildLevel, LEVEL_COUNT, EMPTY, CRATE, USED } from './level.js';
+import { SCENES } from './story.js';
 
 export { LEVEL_COUNT };
 export const STEP = 1 / 60;
@@ -11,6 +12,8 @@ const PLAYER_W = 0.7;
 const EPS = 1e-4;
 const RUSH_TIME = 6;
 const JUG_LIFETIME = 10;
+const LIFE_MAX = 9;
+const LIFE_EVERY = 25; // an extra life for every 25 things collected
 
 const C = {
   gravity: 55,
@@ -76,6 +79,16 @@ const ENEMY_KINDS = {
   witch: { ai: 'cast', speed: 0, w: 0.8, h: 1.0, edgeTurn: false, hp: 2, stomp: true },
   bat: { ai: 'fly', w: 0.6, h: 0.5, hp: 1, stomp: false, fly: true },
   boss: { ai: 'boss', speed: 2.2, w: 1.3, h: 1.6, edgeTurn: false, hp: 14, stomp: true, score: 2000 },
+
+  // Level 4: Honkey Kong rolls barrels down the girders
+  honkey: { ai: 'honkey', speed: 0, w: 2.2, h: 2.6, edgeTurn: false, hp: 999, stomp: false, invuln: true, always: true },
+  barrel: { ai: 'roll', speed: 4.6, w: 0.85, h: 0.85, edgeTurn: false, hp: 1, stomp: false },
+
+  // Level 5: ninja cats, samurai cats, crows, and Max the tabby
+  ninja: { ai: 'ninja', speed: 3.2, w: 0.75, h: 0.8, edgeTurn: false, hp: 1, stomp: true },
+  samurai: { ai: 'charge', speed: 1.4, dash: 6.5, wind: 0.4, dashT: 0.4, trigger: 2.6, w: 0.9, h: 1.0, edgeTurn: true, hp: 3, stomp: true },
+  crow: { ai: 'fly', w: 0.65, h: 0.55, hp: 1, stomp: false, fly: true },
+  max: { ai: 'max', speed: 1.2, w: 2.2, h: 1.9, edgeTurn: false, hp: 30, stomp: true, score: 5000 },
 };
 
 export function createGame({ enemies = true, level = 1 } = {}) {
@@ -95,7 +108,12 @@ export function createGame({ enemies = true, level = 1 } = {}) {
     gear: {}, // name -> true; carried across levels
     ammo: 0,
     checkpoint: 2,
+    checkpointFloor: 9,
     checkpointHit: false,
+    collected: 0,
+    scene: null,
+    ending: null,
+    pendingScene: null,
     bossDefeated: false,
     viewW: 20,
     camX: 0,
@@ -128,7 +146,10 @@ export function loadLevel(g, n) {
   g.coins = g.level.coins;
   g.jugs = 0;
   g.checkpoint = g.level.startX;
+  g.checkpointFloor = g.level.groundY;
   g.checkpointHit = false;
+  g.scene = null;
+  g.pendingScene = null;
   g.bossDefeated = false;
   g.truckMsgT = 0;
   g.loot = [];
@@ -141,16 +162,61 @@ export function nextLevel(g) {
   if (g.levelNo < LEVEL_COUNT) loadLevel(g, g.levelNo + 1);
 }
 
+// What happens after a level-complete screen: a cutscene if the level has one, else the next level
+export function continueGame(g) {
+  if (g.level.afterScene) startScene(g, g.level.afterScene);
+  else nextLevel(g);
+}
+
+// ---- Cutscenes --------------------------------------------------------------
+export function startScene(g, id) {
+  g.scene = { id, idx: 0 };
+  g.mode = 'scene';
+  emit(g, 'scene');
+}
+
+export function advanceScene(g) {
+  const sc = SCENES[g.scene.id];
+  if (g.scene.idx < sc.lines.length - 1) {
+    g.scene.idx++;
+    return;
+  }
+  if (sc.choice) return; // the player has to pick
+  const next = sc.then || {};
+  if (next.level) loadLevel(g, next.level);
+  else if (next.scene) startScene(g, next.scene);
+  else if (next.ending) {
+    g.mode = 'ending';
+    g.ending = next.ending;
+  }
+}
+
+export function chooseScene(g, i) {
+  const sc = SCENES[g.scene.id];
+  if (sc.choice && sc.choice[i]) startScene(g, sc.choice[i].scene);
+}
+
+export function addLife(g, x, y) {
+  if (g.lives >= LIFE_MAX) {
+    g.score += 1000;
+    return;
+  }
+  g.lives++;
+  toast(g, '1UP! Extra life!');
+  if (g.player && x !== undefined) floatText(g, x, y, '1UP!');
+  emit(g, 'life');
+}
+
 export function startPlaying(g) {
   if (g.mode === 'intro') g.mode = 'playing';
 }
 
 export const armorMax = (g) => Object.keys(g.gear).reduce((n, k) => n + (g.gear[k] ? GEAR[k].armor : 0), 0);
 
-function newPlayer(x) {
+function newPlayer(x, floor) {
   return {
     x,
-    y: GROUND_Y - SMALL_H,
+    y: floor - SMALL_H,
     w: PLAYER_W,
     h: SMALL_H,
     vx: 0,
@@ -173,7 +239,7 @@ function newPlayer(x) {
 }
 
 export function respawn(g) {
-  g.player = newPlayer(g.checkpoint);
+  g.player = newPlayer(g.checkpoint, g.checkpointFloor);
   g.player.armor = armorMax(g);
   g.mode = 'playing';
   g.deathT = 0;
@@ -187,15 +253,15 @@ export function respawn(g) {
   g.prevRush = false;
   g.enemies = g.enemiesEnabled
     ? g.level.spawns
-        .filter((s) => s.x >= g.checkpoint - 2 && !(s.kind === 'boss' && g.bossDefeated))
-        .map((s) => makeEnemy(s))
+        .filter((s) => (s.x >= g.checkpoint - 2 || ENEMY_KINDS[s.kind].always) && !((s.kind === 'boss' || s.kind === 'max') && g.bossDefeated))
+        .map((s) => makeEnemy(s, g.level.groundY))
     : [];
   g.camX = clamp(g.player.x - g.viewW * 0.3, 0, g.level.w - g.viewW);
 }
 
-function makeEnemy(s) {
+function makeEnemy(s, groundY = 9) {
   const k = ENEMY_KINDS[s.kind];
-  const y = k.fly ? s.y ?? GROUND_Y - 3 : GROUND_Y - k.h;
+  const y = k.fly ? s.y ?? groundY - 3 : (s.y ?? groundY) - k.h; // walkers: s.y is the floor they stand on
   return {
     kind: s.kind,
     x: s.x,
@@ -221,11 +287,15 @@ function makeEnemy(s) {
     cd: 0.5,
     shootT: 1 + (s.x % 3) * 0.3,
     hopT: 0.5,
+    onGround: !k.fly,
+    air: 0,
+    arm: 0,
+    slams: 0,
   };
 }
 
 function spawnSwarm(g, kind, x, y) {
-  const e = makeEnemy({ kind, x, y });
+  const e = makeEnemy({ kind, x, y }, g.level.groundY);
   e.swarm = true;
   e.life = 7;
   e.awake = true;
@@ -333,6 +403,8 @@ function toast(g, text) {
 
 function collectJug(g) {
   g.jugs++;
+  g.collected++;
+  if (g.collected % LIFE_EVERY === 0) addLife(g, g.player.x, g.player.y - 1);
   g.score += 100;
   g.shine = Math.min(SHINE_MAX, g.shine + 1);
   emit(g, 'coin');
@@ -362,12 +434,19 @@ export function step(g, input, dt = STEP) {
   updateItems(g, dt);
   collide(g);
   updateEffects(g, dt);
+  if (g.pendingScene && (g.pendingScene.t -= dt) <= 0) {
+    startScene(g, g.pendingScene.id);
+    g.pendingScene = null;
+    return;
+  }
 
   const p = g.player;
   if (g.mode === 'playing') {
-    if (!g.checkpointHit && p.x >= g.level.checkpointX) {
+    const cf = g.level.checkpointFloor;
+    if (!g.checkpointHit && p.x >= g.level.checkpointX && (cf == null || (p.onGround && Math.abs(p.y + p.h - cf) < 0.15))) {
       g.checkpointHit = true;
       g.checkpoint = g.level.checkpointX;
+      g.checkpointFloor = cf ?? g.level.groundY;
       floatText(g, p.x, p.y - 1, 'Checkpoint!');
     }
     if (p.y > g.level.h + 1) die(g);
@@ -378,23 +457,33 @@ export function step(g, input, dt = STEP) {
   g.camX += (target - g.camX) * Math.min(1, dt * 8);
 }
 
-const COLLECT_NAMES = { jug: 'jugs', crystal: 'crystals', coin: 'coins' };
+const COLLECT_NAMES = { jug: 'jugs', crystal: 'crystals', coin: 'coins', fish: 'fish' };
 
 function checkGoal(g) {
   const p = g.player;
+  const gy = g.level.groundY;
   g.truckMsgT = Math.max(0, g.truckMsgT - STEP);
+  if (g.level.goalKind === 'dojo') return; // Max's defeat ends this level
+  if (g.level.goalKind === 'fridge') {
+    // Grab the beer: reach the fridge on the top girder
+    if (Math.abs(p.x + p.w / 2 - g.level.goalX) < 1.1 && p.onGround && Math.abs(p.y + p.h - g.level.goalFloor) < 0.2) {
+      floatText(g, g.level.goalX - 1, g.level.goalFloor - 3, 'Got the beer!');
+      win(g);
+    }
+    return;
+  }
   if (Math.abs(p.x - g.level.goalX) > 1.6) return;
   const bossAlive = g.level.boss && g.enemiesEnabled && !g.bossDefeated;
   if (bossAlive) {
     if (g.truckMsgT === 0) {
       g.truckMsgT = 2;
-      floatText(g, g.level.goalX - 2, GROUND_Y - 3.2, 'Defeat the Witch Queen!');
+      floatText(g, g.level.goalX - 2, gy - 3.2, 'Defeat the Witch Queen!');
     }
   } else if (g.jugs >= g.level.goalJugs) {
     if (p.onGround) win(g);
   } else if (g.truckMsgT === 0) {
     g.truckMsgT = 2;
-    floatText(g, g.level.goalX - 1.4, GROUND_Y - 3.2, `Need ${g.level.goalJugs - g.jugs} more ${COLLECT_NAMES[g.level.collectible]}!`);
+    floatText(g, g.level.goalX - 1.4, gy - 3.2, `Need ${g.level.goalJugs - g.jugs} more ${COLLECT_NAMES[g.level.collectible]}!`);
   }
 }
 
@@ -468,6 +557,12 @@ function updatePlayer(g, input, dt) {
     if (!c.taken && Math.abs(c.x + 0.5 - (p.x + p.w / 2)) < 0.7 && Math.abs(c.y + 0.5 - (p.y + p.h / 2)) < 0.4 + p.h / 2) {
       c.taken = true;
       collectJug(g);
+    }
+  }
+  for (const l of g.level.lives) {
+    if (!l.taken && Math.abs(l.x + 0.5 - (p.x + p.w / 2)) < 0.8 && Math.abs(l.y + 0.5 - (p.y + p.h / 2)) < 0.5 + p.h / 2) {
+      l.taken = true;
+      addLife(g, l.x, l.y - 0.6);
     }
   }
 }
@@ -588,6 +683,8 @@ function hitTile(g, tx, ty) {
   const away = p.x + p.w / 2 < tx + 0.5 ? 1 : -1; // pop out away from Billy so he can chase it
   if (what === 'shine') {
     g.items.push({ kind: 'shine', x: tx + 0.1, y: ty - 0.8, w: 0.8, h: 0.8, dir: away, vx: 3, vy: -7, age: 0 });
+  } else if (what === 'life') {
+    g.items.push({ kind: 'life', x: tx + 0.1, y: ty - 0.8, w: 0.8, h: 0.8, dir: away, vx: 3, vy: -8, age: 0 });
   } else if (what.startsWith('gear:')) {
     g.items.push({ kind: 'gear', gear: what.slice(5), x: tx + 0.1, y: ty - 0.8, w: 0.8, h: 0.8, dir: away, vx: 3, vy: -8, age: 0 });
   } else if (what.startsWith('swarm:')) {
@@ -642,7 +739,7 @@ function updateEnemies(g, dt) {
       case 'charge':
         if (e.state === 'walk') {
           if (e.cd > 0) e.cd -= dt;
-          else if (near && Math.abs(dx) < 6) {
+          else if (near && Math.abs(dx) < (k.trigger ?? 6)) {
             e.state = 'wind';
             e.stateT = k.wind;
             e.dir = toward;
@@ -652,7 +749,7 @@ function updateEnemies(g, dt) {
           e.stateT -= dt;
           if (e.stateT <= 0) {
             e.state = 'dash';
-            e.stateT = 0.9;
+            e.stateT = k.dashT ?? 0.9;
           }
         } else if (e.state === 'dash') {
           speed = k.dash;
@@ -704,6 +801,52 @@ function updateEnemies(g, dt) {
           }
         }
         break;
+      case 'ninja': // hops around and throws shuriken
+        if (near && Math.abs(dx) < 9) e.dir = toward;
+        e.hopT -= dt;
+        if (e.onGround && e.hopT <= 0) {
+          e.vy = -13;
+          e.hopT = 1.3;
+        }
+        e.shootT -= dt;
+        e.warn = e.shootT < 0.35 && near && Math.abs(dx) < 9;
+        if (e.shootT <= 0) {
+          e.shootT = 2.6;
+          if (near && Math.abs(dx) < 9) {
+            spawnShot(g, e.x + e.w / 2, e.y + e.h * 0.4, toward * 8, -1.5, 'star', 3);
+            emit(g, 'enemyshot');
+          }
+        }
+        if (Math.abs(dx) < 1.2) speed = 0;
+        break;
+      case 'roll': // Honkey's barrels: roll one way, flip direction after dropping to a lower girder
+        edgeTurn = false;
+        if (!e.onGround) e.air += dt;
+        break;
+      case 'honkey': // Honkey Kong: stands guard and rolls barrels at Billy
+        e.dir = 1;
+        e.arm = Math.max(0, e.arm - dt);
+        e.shootT -= dt;
+        e.warn = e.shootT < 0.45;
+        if (e.shootT <= 0) {
+          const live = g.enemies.filter((o) => o.kind === 'barrel' && o.alive).length;
+          if (live < 7) {
+            const b = makeEnemy({ kind: 'barrel', x: e.x + e.w + 0.05 }, g.level.groundY);
+            b.y = e.y + e.h - b.h;
+            b.dir = 1;
+            b.awake = true;
+            b.onGround = true;
+            g.enemies.push(b);
+            emit(g, 'barrel');
+          }
+          e.arm = 0.4;
+          e.shootT = near && Math.abs(dx) < 9 ? 1.7 : 2.4;
+        }
+        break;
+      case 'max':
+        speed = updateMax(g, e, dt, k, dx, toward);
+        edgeTurn = false;
+        break;
       case 'boss':
         updateBoss(g, e, dt, k);
         speed = e.hp <= k.hp / 2 ? 3.4 : k.speed;
@@ -716,6 +859,16 @@ function updateEnemies(g, dt) {
     e.vy = Math.min(e.vy + C.gravity * dt, C.maxFall);
     const wasGround = e.onGround;
     const { hitX } = moveBody(g, e, dt);
+    if (k.ai === 'roll') {
+      if (hitX || e.x < -1 || e.x > g.level.w) {
+        e.alive = false; // splinters against the wall
+        e.squish = 1;
+      } else if (e.onGround && e.air > 0.1) {
+        e.dir = -e.dir; // landed on the next girder: head back the other way
+        e.air = 0;
+      } else if (e.onGround) e.air = 0;
+      continue;
+    }
     if (hitX) {
       if (e.state === 'dash') {
         e.state = 'rest';
@@ -730,6 +883,69 @@ function updateEnemies(g, dt) {
     if (e.y > g.level.h + 2) e.alive = false;
   }
   g.enemies = g.enemies.filter((e) => e.alive || e.squish < 0.5);
+}
+
+// Max the old, fat tabby: lumbers after Billy, then winds up and belly-slams, sending
+// shockwaves along the floor. Hurts more the angrier he gets, and wheezes between attacks.
+function updateMax(g, e, dt, k, dx, toward) {
+  const rage = e.hp <= k.hp / 3 ? 3 : e.hp <= (k.hp * 2) / 3 ? 2 : 1;
+  const minX = e.ox - 9;
+  const maxX = e.ox + 9;
+  let speed = 0;
+  if (e.state === 'walk' || e.state === 'dash') {
+    e.dir = toward;
+    speed = k.speed * (rage > 1 ? 1.5 : 1);
+    e.cd -= dt;
+    if (e.cd <= 0 && Math.abs(dx) < 14) {
+      e.state = 'wind';
+      e.stateT = rage === 3 ? 0.5 : 0.85;
+      e.slams = rage === 3 ? 2 : 1;
+    }
+  } else if (e.state === 'wind') {
+    e.warn = true;
+    e.dir = toward;
+    e.stateT -= dt;
+    if (e.stateT <= 0) {
+      e.state = 'slam';
+      e.vy = -16;
+      e.slamAir = false;
+      e.slamDir = toward;
+    }
+  } else if (e.state === 'slam') {
+    e.warn = false;
+    speed = 4.5;
+    e.dir = e.slamDir;
+    if (!e.onGround) e.slamAir = true;
+    else if (e.slamAir) {
+      // THUD: shockwaves roll out both ways, plus hairballs once he's hurt
+      e.slams--;
+      e.slamAir = false;
+      const gy = g.level.groundY;
+      for (const d of [-1, 1]) g.shots.push({ kind: 'wave', x: e.x + e.w / 2 - 0.4 + d * 0.8, y: gy - 0.55, w: 0.8, h: 0.55, vx: d * 7, vy: 0, gravity: 0, life: 2.4 });
+      if (rage >= 2) {
+        for (const vx of [-4, 4]) spawnShot(g, e.x + e.w / 2, e.y, vx, -9, 'hair', 18);
+      }
+      floatText(g, e.x, e.y - 0.8, 'THUD!');
+      emit(g, 'slam');
+      if (e.slams > 0) {
+        e.state = 'wind';
+        e.stateT = 0.3;
+      } else {
+        e.state = 'rest';
+        e.stateT = 1.9;
+      }
+    }
+  } else if (e.state === 'rest') {
+    e.warn = false;
+    e.stateT -= dt;
+    if (e.stateT <= 0) {
+      e.state = 'walk';
+      e.cd = rage === 3 ? 1.0 : 1.8;
+    }
+  }
+  if (e.x < minX && e.dir < 0) speed = 0;
+  if (e.x + e.w > maxX && e.dir > 0) speed = 0;
+  return speed;
 }
 
 // The Witch Queen paces her arena and throws fans of orbs, faster once hurt.
@@ -831,6 +1047,10 @@ function collide(g) {
       floatText(g, it.x, it.y - 0.3, '+100');
       return false;
     }
+    if (it.kind === 'life') {
+      addLife(g, it.x, it.y - 0.5);
+      return false;
+    }
     if (it.kind === 'gear') {
       equip(g, it.gear);
       g.score += 300;
@@ -911,10 +1131,11 @@ function collide(g) {
 
 // Applies damage to an enemy and handles the reward when it dies.
 function damage(g, e, dmg, how) {
-  if (!e.alive || e.iframes > 0) return;
-  e.hp -= dmg;
   const k = ENEMY_KINDS[e.kind];
-  if (e.kind === 'boss') e.iframes = 0.6;
+  if (!e.alive || e.iframes > 0 || k.invuln) return;
+  if (e.kind === 'max' && e.state === 'rest') dmg *= 2; // winded and wide open
+  e.hp -= dmg;
+  if (e.kind === 'boss' || e.kind === 'max') e.iframes = 0.55;
   if (e.hp <= 0) {
     kill(g, e, how === 'stomp');
     if (how !== 'stomp') {
@@ -934,9 +1155,10 @@ function kill(g, e, squished) {
   e.squish = 0;
   e.squished = squished;
   const k = ENEMY_KINDS[e.kind];
-  if (e.kind === 'boss') {
+  if (e.kind === 'boss' || e.kind === 'max') {
     g.bossDefeated = true;
-    toast(g, 'The Witch Queen is defeated! The gate is open!');
+    toast(g, e.kind === 'max' ? 'Max is down for the count!' : 'The Witch Queen is defeated! The gate is open!');
+    if (g.level.bossScene) g.pendingScene = { id: g.level.bossScene, t: 2 };
   }
   if (k.ammo) {
     const n = k.ammo * (g.gear.antenna ? 2 : 1);
@@ -996,12 +1218,16 @@ function stepDying(g, dt) {
 }
 
 function win(g) {
+  g.score += 1000 + g.lives * 500 + Math.max(0, g.jugs - g.level.goalJugs) * 100;
+  emit(g, 'win');
+  if (g.level.winScene) {
+    startScene(g, g.level.winScene);
+    return;
+  }
   g.mode = 'won';
-  g.score += 1000 + g.lives * 500 + (g.jugs - g.level.goalJugs) * 100;
   // Any of this level's gear that Billy missed is waiting in the loot chest
   g.loot = g.level.gearPool.map((name) => ({ name, found: !!g.gear[name] }));
   for (const name of g.level.gearPool) if (!g.gear[name]) equip(g, name);
-  emit(g, 'win');
 }
 
 function updateEffects(g, dt) {

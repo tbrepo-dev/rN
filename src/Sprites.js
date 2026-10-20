@@ -192,19 +192,22 @@ const EMOJI = {
   chicken: '🐔', raccoon: '🦝', skunk: '🦨', hound: '🐕', turkey: '🦃', bee: '🐝',
   alien: '👽', hopper: '👾', tentacle: '🐙', ufo: '🛸', drone: '🛰️',
   goblin: '👺', skeleton: '💀', troll: '🧌', witch: '🧙‍♀️', bat: '🦇', boss: '🧙‍♀️',
+  ninja: '🐈‍⬛', samurai: '🐱', crow: '🐦', max: '🐈',
 };
-const SCALE = { bee: 0.6, drone: 0.6, bat: 0.65, turkey: 1.0, troll: 1.2, ufo: 1.1, boss: 1.8, witch: 1.0, tentacle: 0.95 };
-const FLYERS = { bee: 1, drone: 1, bat: 1, ufo: 1 };
+const SCALE = { bee: 0.6, drone: 0.6, bat: 0.65, turkey: 1.0, troll: 1.2, ufo: 1.1, boss: 1.8, witch: 1.0, tentacle: 0.95, ninja: 0.85, samurai: 0.95, crow: 0.65, max: 2.6 };
+const FLYERS = { bee: 1, drone: 1, bat: 1, ufo: 1, crow: 1 };
 
 export function Critter({ e, ts }) {
+  if (e.kind === 'honkey') return <Honkey e={e} ts={ts} />;
+  if (e.kind === 'barrel') return <RollingBarrel e={e} ts={ts} />;
   const size = ts * (SCALE[e.kind] ?? 0.85);
-  const charging = (e.kind === 'turkey' || e.kind === 'troll') && e.state === 'wind';
+  const charging = (e.kind === 'turkey' || e.kind === 'troll' || e.kind === 'samurai' || e.kind === 'max') && e.state === 'wind';
   const shake = charging ? Math.sin(e.t * 60) * ts * 0.06 : 0;
   const warn = e.warn || charging;
   const hurt = e.hit > 0;
   const flip = FLYERS[e.kind] ? (e.dir > 0 ? 1 : -1) : e.dir > 0 ? -1 : 1;
   const transform = e.alive
-    ? [{ translateX: shake }, { scaleX: flip }, { scaleY: (e.kind === 'turkey' || e.kind === 'troll') && e.state === 'dash' ? 0.9 : 1 }]
+    ? [{ translateX: shake }, { scaleX: flip * (e.kind === 'max' ? 1.3 : 1) }, { scaleY: ((e.kind === 'turkey' || e.kind === 'troll') && e.state === 'dash') || (e.kind === 'max' && e.state === 'wind') ? 0.88 : 1 }]
     : e.squished
     ? [{ scaleY: 0.25 }, { scaleX: flip }]
     : [{ rotate: `${Math.min(e.squish * 540, 180)}deg` }, { scaleX: flip }];
@@ -225,6 +228,20 @@ export function Critter({ e, ts }) {
     >
       {e.kind === 'boss' && <View style={{ position: 'absolute', bottom: 0, width: e.w * ts * 1.5, height: e.h * ts * 0.9, borderRadius: ts, backgroundColor: 'rgba(170,70,255,0.28)' }} />}
       <Text style={{ fontSize: size, lineHeight: size * 1.15, includeFontPadding: false }}>{EMOJI[e.kind]}</Text>
+      {e.kind === 'ninja' && (
+        <>
+          <View style={{ position: 'absolute', top: e.h * ts * 0.18, left: e.w * ts * 0.12, width: e.w * ts * 0.76, height: Math.max(3, ts * 0.1), backgroundColor: '#d92b2b' }} />
+          <View style={{ position: 'absolute', top: e.h * ts * 0.2, left: -e.w * ts * 0.25, width: e.w * ts * 0.4, height: Math.max(2, ts * 0.06), backgroundColor: '#d92b2b', transform: [{ rotate: '-15deg' }] }} />
+        </>
+      )}
+      {e.kind === 'samurai' && (
+        <>
+          <View style={{ position: 'absolute', top: -ts * 0.1, left: e.w * ts * 0.1, width: e.w * ts * 0.8, height: ts * 0.3, backgroundColor: '#b3262b', borderTopLeftRadius: ts * 0.4, borderTopRightRadius: ts * 0.4, borderBottomWidth: 3, borderColor: '#e0b030' }} />
+          <View style={{ position: 'absolute', top: -ts * 0.3, left: e.w * ts * 0.42, width: Math.max(3, ts * 0.12), height: ts * 0.3, backgroundColor: '#e0b030', transform: [{ rotate: '8deg' }] }} />
+          <View style={{ position: 'absolute', bottom: ts * 0.1, left: -ts * 0.15, width: ts * 0.9, height: Math.max(3, ts * 0.07), backgroundColor: '#e8eef6', transform: [{ rotate: e.state === 'dash' ? '-5deg' : '-40deg' }] }} />
+        </>
+      )}
+      {e.kind === 'max' && e.state === 'rest' && <Text style={{ position: 'absolute', top: -ts * 0.2, right: -ts * 0.2, fontSize: ts * 0.8 }}>💨</Text>}
       {e.kind === 'boss' && <Text style={{ position: 'absolute', top: -ts * 0.55, fontSize: ts * 0.7 }}>👑</Text>}
       {warn && e.alive && <Text style={{ position: 'absolute', top: -ts * (e.kind === 'boss' ? 1.1 : 0.5), fontSize: ts * 0.5 }}>❗</Text>}
     </View>
@@ -273,6 +290,24 @@ export function Ray({ r, ts }) {
 
 // Enemy shots: green plasma from aliens, purple orbs from witches
 export function Shot({ s, ts }) {
+  if (s.kind === 'star') {
+    const d = s.w * ts * 1.5;
+    const spin = `${s.life * 1500}deg`;
+    return (
+      <View style={{ position: 'absolute', left: s.x * ts - d * 0.2, top: s.y * ts - d * 0.2, width: d, height: d }}>
+        {[0, 45].map((a) => (
+          <View key={a} style={{ position: 'absolute', left: d * 0.12, top: d * 0.12, width: d * 0.76, height: d * 0.76, backgroundColor: '#cfd6de', borderWidth: 2, borderColor: '#2b3340', transform: [{ rotate: `${a}deg` }, { rotate: spin }] }} />
+        ))}
+      </View>
+    );
+  }
+  if (s.kind === 'wave') {
+    return <View style={{ position: 'absolute', left: s.x * ts, top: s.y * ts, width: s.w * ts, height: s.h * ts, borderTopLeftRadius: s.w * ts, borderTopRightRadius: s.w * ts, backgroundColor: 'rgba(255,176,60,0.85)', borderWidth: 3, borderColor: '#d9701c' }} />;
+  }
+  if (s.kind === 'hair') {
+    const d = s.w * ts * 1.3;
+    return <View style={{ position: 'absolute', left: s.x * ts, top: s.y * ts, width: d, height: d, borderRadius: d / 2, backgroundColor: '#8a6a4a', borderWidth: 3, borderColor: '#4a3a2a' }} />;
+  }
   const plasma = s.kind === 'plasma';
   const d = s.w * ts;
   return (
@@ -321,6 +356,11 @@ export function Jug({ x, y, ts, t = 0, glow = false, kind = 'jug' }) {
           shadowOffset: { width: 0, height: 0 },
         }}
       />
+    );
+  }
+  if (kind === 'fish') {
+    return (
+      <Text style={{ position: 'absolute', left: x * ts + ts * 0.1, top: y * ts + ts * 0.1 + bob, fontSize: ts * 0.6, transform: [{ rotate: `${Math.sin(t * 3 + x) * 12}deg` }] }}>🐟</Text>
     );
   }
   if (kind === 'coin') {
@@ -422,6 +462,18 @@ const THEMES = {
     rock: { bg: '#6a4f9a', edge: '#2d1f52', ring: '#b79ae8' },
     box: { bg: '#2f7d68', plank: '#1c5143', iron: '#7dffe0', usedBg: '#3a3a4a', usedPlank: '#2a2a37', usedIron: '#55556a' },
   },
+  tower: {
+    ground: '#3b3050', top: '#7d6aa8', topLine: '#4a3d70', vein: '#2d2440',
+    hay: { bg: '#c0392b', line: '#7a1f17' },
+    rock: { bg: '#5a4a7a', edge: '#2d2440', ring: '#8a7ab0' },
+    box: { bg: '#5a4a7a', plank: '#2d2440', iron: '#8a7ab0', usedBg: '#3a3a4a', usedPlank: '#2a2a37', usedIron: '#55556a' },
+  },
+  japan: {
+    ground: '#7a5a3c', top: '#c9a06a', topLine: '#8f6b3a', vein: '#5f452c',
+    hay: { bg: '#8c2f2a', line: '#e0b030' },
+    rock: { bg: '#9a9fa6', edge: '#555a61', ring: '#f2d66b' },
+    box: { bg: '#b3262b', plank: '#701419', iron: '#e0b030', usedBg: '#4d3f3a', usedPlank: '#382d29', usedIron: '#6f6350' },
+  },
   medieval: {
     ground: '#6b5b4b', top: '#6a9f3f', topLine: '#44702a', vein: '#574a3c',
     hay: { bg: '#9aa0a6', line: '#6c7278' },
@@ -454,6 +506,29 @@ export function Tile({ type, x, y, ts, theme = 'holler' }) {
           </View>
         );
       }
+      if (theme === 'tower') {
+        // red steel girder with rivets and a cross brace
+        return (
+          <View style={[base, { backgroundColor: T.hay.bg, borderWidth: 2, borderColor: T.hay.line, overflow: 'hidden' }]}>
+            <View style={{ position: 'absolute', left: -ts * 0.1, top: ts * 0.44, width: ts * 1.3, height: 3, backgroundColor: T.hay.line, transform: [{ rotate: '45deg' }] }} />
+            <View style={{ position: 'absolute', left: -ts * 0.1, top: ts * 0.44, width: ts * 1.3, height: 3, backgroundColor: T.hay.line, transform: [{ rotate: '-45deg' }] }} />
+            {[4, ts - 9].map((l) => (
+              <View key={l} style={{ position: 'absolute', left: l, top: 4, width: 5, height: 5, borderRadius: 3, backgroundColor: '#f0c4b8' }} />
+            ))}
+          </View>
+        );
+      }
+      if (theme === 'japan') {
+        // lacquered roof beam with gold trim
+        return (
+          <View style={[base, { backgroundColor: T.hay.bg, borderWidth: 2, borderColor: T.hay.line, borderRadius: 3 }]}>
+            {[0.3, 0.6].map((f) => (
+              <View key={f} style={{ position: 'absolute', left: 3, right: 3, top: ts * f, height: 3, backgroundColor: '#5c1814' }} />
+            ))}
+            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 4, backgroundColor: T.hay.line }} />
+          </View>
+        );
+      }
       return (
         <View style={[base, { backgroundColor: T.hay.bg, borderWidth: 2, borderColor: T.hay.line }]}>
           <View style={{ position: 'absolute', left: 0, right: 0, top: ts * 0.48, height: 2, backgroundColor: T.hay.line }} />
@@ -474,6 +549,22 @@ export function Tile({ type, x, y, ts, theme = 'holler' }) {
               <View style={{ width: ts * 0.5, height: ts * 0.25, borderRadius: ts * 0.12, backgroundColor: '#14141c' }} />
             ) : (
               <View style={{ width: ts * 0.46, height: ts * 0.46, borderRadius: ts * 0.23, backgroundColor: iron, opacity: 0.85, borderWidth: 2, borderColor: '#14b38f' }} />
+            )}
+          </View>
+        );
+      }
+      if (theme === 'japan') {
+        // lacquered offering box with a gold band and a lucky coin mark
+        return (
+          <View style={[base, { backgroundColor: wood, borderWidth: 2, borderColor: plank, borderRadius: 4, alignItems: 'center', justifyContent: 'center' }]}>
+            <View style={{ position: 'absolute', left: 0, right: 0, top: ts * 0.12, height: ts * 0.1, backgroundColor: iron }} />
+            <View style={{ position: 'absolute', left: 0, right: 0, bottom: ts * 0.12, height: ts * 0.1, backgroundColor: iron }} />
+            {used ? (
+              <View style={{ width: ts * 0.3, height: ts * 0.18, borderRadius: ts * 0.1, backgroundColor: '#1d150e' }} />
+            ) : (
+              <View style={{ width: ts * 0.34, height: ts * 0.34, borderRadius: ts * 0.17, backgroundColor: iron, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={{ width: ts * 0.12, height: ts * 0.12, backgroundColor: wood }} />
+              </View>
             )}
           </View>
         );
@@ -506,8 +597,10 @@ export function Tile({ type, x, y, ts, theme = 'holler' }) {
     }
     case 5: // stump / boulder / stone pillar
       return (
-        <View style={[base, { backgroundColor: T.rock.bg, borderWidth: 2, borderColor: T.rock.edge, borderRadius: theme === 'medieval' ? 2 : theme === 'alien' ? ts * 0.35 : 4 }]}>
-          {theme === 'medieval' ? (
+        <View style={[base, { backgroundColor: T.rock.bg, borderWidth: 2, borderColor: T.rock.edge, borderRadius: theme === 'medieval' || theme === 'japan' ? 2 : theme === 'alien' ? ts * 0.35 : 4 }]}>
+          {theme === 'japan' ? (
+            <View style={{ position: 'absolute', left: ts * 0.3, top: ts * 0.3, width: ts * 0.4, height: ts * 0.4, backgroundColor: T.rock.ring, borderWidth: 2, borderColor: T.rock.edge }} />
+          ) : theme === 'medieval' ? (
             <View style={{ position: 'absolute', left: 3, right: 3, top: ts * 0.45, height: 2, backgroundColor: T.rock.ring }} />
           ) : (
             <View style={{ position: 'absolute', left: ts * 0.2, top: ts * 0.2, width: ts * 0.6, height: ts * 0.6, borderRadius: ts * 0.3, borderWidth: 2, borderColor: T.rock.ring }} />
@@ -584,4 +677,181 @@ export function CastleGate({ x, y, ts, open }) {
       </View>
     </View>
   );
+}
+
+export function OneUp({ x, y, ts, t = 0 }) {
+  const bob = Math.sin(t * 4 + x) * ts * 0.08;
+  const d = ts * 0.78;
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left: x * ts + (ts - d) / 2,
+        top: y * ts + (ts - d) / 2 + bob,
+        width: d,
+        height: d,
+        borderRadius: d / 2,
+        backgroundColor: '#7dff6a',
+        borderWidth: 3,
+        borderColor: '#1f9d2e',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#7dff6a',
+        shadowRadius: 9,
+        shadowOpacity: 1,
+        shadowOffset: { width: 0, height: 0 },
+      }}
+    >
+      <Text style={{ fontSize: ts * 0.34, lineHeight: ts * 0.4 }}>🤠</Text>
+      <Text style={{ fontSize: ts * 0.2, fontWeight: '900', color: '#0b4d14', lineHeight: ts * 0.22 }}>1UP</Text>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Honkey Kong: a big albino ape in overalls who rolls barrels at you
+export function Honkey({ e, ts }) {
+  const W = e.w * ts;
+  const H = e.h * ts;
+  const fur = '#f6f3ee';
+  const shade = '#d9d3c8';
+  const throwing = e.arm > 0;
+  const lifting = e.warn;
+  return (
+    <View style={{ position: 'absolute', left: e.x * ts, top: e.y * ts, width: W, height: H }}>
+      {/* legs + boots */}
+      <View style={{ position: 'absolute', bottom: 0, left: W * 0.2, width: W * 0.24, height: H * 0.3, backgroundColor: '#2f5fb8', borderRadius: 6 }} />
+      <View style={{ position: 'absolute', bottom: 0, left: W * 0.56, width: W * 0.24, height: H * 0.3, backgroundColor: '#2f5fb8', borderRadius: 6 }} />
+      <View style={{ position: 'absolute', bottom: 0, left: W * 0.14, width: W * 0.32, height: H * 0.08, backgroundColor: '#3b2a1e', borderRadius: 4 }} />
+      <View style={{ position: 'absolute', bottom: 0, left: W * 0.54, width: W * 0.32, height: H * 0.08, backgroundColor: '#3b2a1e', borderRadius: 4 }} />
+      {/* arms */}
+      <View style={{ position: 'absolute', top: H * 0.36, left: -W * 0.02, width: W * 0.2, height: H * 0.38, backgroundColor: fur, borderRadius: W * 0.1, borderWidth: 2, borderColor: shade }} />
+      <View
+        style={{
+          position: 'absolute',
+          top: throwing || lifting ? H * 0.08 : H * 0.36,
+          right: throwing || lifting ? -W * 0.02 : -W * 0.02,
+          width: W * 0.2,
+          height: H * (throwing || lifting ? 0.5 : 0.38),
+          backgroundColor: fur,
+          borderRadius: W * 0.1,
+          borderWidth: 2,
+          borderColor: shade,
+          transform: [{ rotate: throwing ? '-25deg' : lifting ? '10deg' : '0deg' }],
+        }}
+      />
+      {lifting && <Text style={{ position: 'absolute', top: -H * 0.12, right: -W * 0.12, fontSize: ts * 0.9 }}>🛢️</Text>}
+      {/* torso */}
+      <View style={{ position: 'absolute', top: H * 0.3, left: W * 0.14, width: W * 0.72, height: H * 0.5, backgroundColor: fur, borderRadius: W * 0.2, borderWidth: 2, borderColor: shade }} />
+      {/* overalls: bib, straps, buttons */}
+      <View style={{ position: 'absolute', top: H * 0.46, left: W * 0.3, width: W * 0.4, height: H * 0.36, backgroundColor: '#2f5fb8', borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottomLeftRadius: W * 0.1, borderBottomRightRadius: W * 0.1 }} />
+      <View style={{ position: 'absolute', top: H * 0.3, left: W * 0.32, width: W * 0.07, height: H * 0.2, backgroundColor: '#2f5fb8' }} />
+      <View style={{ position: 'absolute', top: H * 0.3, left: W * 0.61, width: W * 0.07, height: H * 0.2, backgroundColor: '#2f5fb8' }} />
+      <View style={{ position: 'absolute', top: H * 0.5, left: W * 0.33, width: W * 0.06, height: W * 0.06, borderRadius: W * 0.03, backgroundColor: '#f0c53a' }} />
+      <View style={{ position: 'absolute', top: H * 0.5, left: W * 0.61, width: W * 0.06, height: W * 0.06, borderRadius: W * 0.03, backgroundColor: '#f0c53a' }} />
+      {/* head */}
+      <View style={{ position: 'absolute', top: H * 0.02, left: W * 0.24, width: W * 0.52, height: H * 0.34, backgroundColor: fur, borderRadius: W * 0.26, borderWidth: 2, borderColor: shade }} />
+      <View style={{ position: 'absolute', top: H * 0.1, left: W * 0.3, width: W * 0.2, height: W * 0.2, borderRadius: W * 0.1, backgroundColor: fur, borderWidth: 2, borderColor: shade }} />
+      <View style={{ position: 'absolute', top: H * 0.1, left: W * 0.5, width: W * 0.2, height: W * 0.2, borderRadius: W * 0.1, backgroundColor: fur, borderWidth: 2, borderColor: shade }} />
+      <View style={{ position: 'absolute', top: H * 0.13, left: W * 0.32, width: W * 0.36, height: H * 0.2, backgroundColor: '#f2b3a6', borderRadius: W * 0.14 }} />
+      {/* angry red eyes + brows, nostrils, mouth */}
+      <View style={{ position: 'absolute', top: H * 0.15, left: W * 0.36, width: W * 0.07, height: W * 0.07, borderRadius: W * 0.035, backgroundColor: '#e0262a' }} />
+      <View style={{ position: 'absolute', top: H * 0.15, left: W * 0.57, width: W * 0.07, height: W * 0.07, borderRadius: W * 0.035, backgroundColor: '#e0262a' }} />
+      <View style={{ position: 'absolute', top: H * 0.12, left: W * 0.34, width: W * 0.12, height: 3, backgroundColor: '#8a7f73', transform: [{ rotate: '18deg' }] }} />
+      <View style={{ position: 'absolute', top: H * 0.12, left: W * 0.54, width: W * 0.12, height: 3, backgroundColor: '#8a7f73', transform: [{ rotate: '-18deg' }] }} />
+      <View style={{ position: 'absolute', top: H * 0.22, left: W * 0.45, width: W * 0.1, height: throwing ? H * 0.08 : 4, backgroundColor: '#7a1f1f', borderRadius: 3 }} />
+      <Text style={{ position: 'absolute', top: -H * 0.12, left: 0, right: 0, textAlign: 'center', fontSize: Math.max(8, ts * 0.28), fontWeight: '900', color: '#fff', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 3 }}>HONKEY KONG</Text>
+    </View>
+  );
+}
+
+export function RollingBarrel({ e, ts }) {
+  const d = e.w * ts;
+  const alive = e.alive;
+  return (
+    <View
+      style={{
+        position: 'absolute',
+        left: e.x * ts,
+        top: e.y * ts,
+        width: d,
+        height: d,
+        borderRadius: d / 2,
+        backgroundColor: '#a8642a',
+        borderWidth: 3,
+        borderColor: '#5c3412',
+        opacity: alive ? 1 : Math.max(0, 1 - e.squish * 3),
+        transform: [{ rotate: `${e.x * 95}deg` }],
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View style={{ position: 'absolute', left: 0, right: 0, top: d * 0.22, height: 3, backgroundColor: '#3d4a56' }} />
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: d * 0.22, height: 3, backgroundColor: '#3d4a56' }} />
+      <View style={{ width: d * 0.3, height: d * 0.3, borderRadius: d * 0.15, borderWidth: 2, borderColor: '#5c3412' }} />
+    </View>
+  );
+}
+
+export function Fridge({ x, y, ts, t }) {
+  const w = ts * 1.4;
+  const h = ts * 2.3;
+  return (
+    <View style={{ position: 'absolute', left: x * ts, top: y * ts, width: w, height: h }}>
+      <View style={{ position: 'absolute', left: -ts * 0.3, top: -ts * 0.3, width: w + ts * 0.6, height: h + ts * 0.5, borderRadius: ts, backgroundColor: 'rgba(255,230,120,0.3)', opacity: 0.6 + 0.4 * Math.sin(t * 5) }} />
+      <View style={{ position: 'absolute', left: 0, top: 0, width: w, height: h, backgroundColor: '#f4f6f8', borderWidth: 3, borderColor: '#aab4be', borderRadius: 8 }}>
+        <View style={{ position: 'absolute', left: 0, right: 0, top: h * 0.34, height: 3, backgroundColor: '#aab4be' }} />
+        <View style={{ position: 'absolute', right: w * 0.1, top: h * 0.1, width: 5, height: h * 0.18, backgroundColor: '#8794a1', borderRadius: 3 }} />
+        <View style={{ position: 'absolute', right: w * 0.1, top: h * 0.42, width: 5, height: h * 0.24, backgroundColor: '#8794a1', borderRadius: 3 }} />
+        <Text style={{ position: 'absolute', left: w * 0.12, top: h * 0.12, fontSize: ts * 0.4 }}>🍺</Text>
+        <View style={{ position: 'absolute', left: w * 0.12, top: h * 0.55, width: w * 0.34, height: w * 0.34, backgroundColor: '#ffe45e', transform: [{ rotate: '-6deg' }] }} />
+      </View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Cast for cutscenes
+const FAKE_P = { x: 0, y: 0, w: 0.7, h: 0.95, facing: 1, onGround: true, run: 0, invuln: 0, rush: 0, slash: 0, shielding: false };
+
+export function Natasha({ size }) {
+  const S = size;
+  const fur = '#8fa3b8';
+  return (
+    <View style={{ width: S * 0.9, height: S * 0.9 }}>
+      {/* tail */}
+      <View style={{ position: 'absolute', left: S * 0.62, top: S * 0.5, width: S * 0.34, height: S * 0.1, borderRadius: S * 0.05, backgroundColor: fur, transform: [{ rotate: '-35deg' }] }} />
+      {/* body */}
+      <View style={{ position: 'absolute', left: S * 0.18, top: S * 0.46, width: S * 0.5, height: S * 0.4, borderRadius: S * 0.2, backgroundColor: fur }} />
+      <View style={{ position: 'absolute', left: S * 0.3, top: S * 0.56, width: S * 0.26, height: S * 0.3, borderRadius: S * 0.13, backgroundColor: '#c4d0dc' }} />
+      {/* head */}
+      <View style={{ position: 'absolute', left: S * 0.16, top: S * 0.18, width: S * 0.5, height: S * 0.38, borderRadius: S * 0.2, backgroundColor: fur }} />
+      <View style={{ position: 'absolute', left: S * 0.16, top: S * 0.12, width: 0, height: 0, borderLeftWidth: S * 0.08, borderRightWidth: S * 0.08, borderBottomWidth: S * 0.16, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: fur }} />
+      <View style={{ position: 'absolute', left: S * 0.5, top: S * 0.12, width: 0, height: 0, borderLeftWidth: S * 0.08, borderRightWidth: S * 0.08, borderBottomWidth: S * 0.16, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: fur }} />
+      {/* ushanka fur hat with a red star */}
+      <View style={{ position: 'absolute', left: S * 0.12, top: S * 0.08, width: S * 0.58, height: S * 0.2, borderRadius: S * 0.1, backgroundColor: '#4a3a30', borderWidth: 2, borderColor: '#2d221b' }} />
+      <View style={{ position: 'absolute', left: S * 0.36, top: S * 0.11, width: S * 0.1, height: S * 0.1, backgroundColor: '#d92b2b', transform: [{ rotate: '45deg' }] }} />
+      {/* face */}
+      <View style={{ position: 'absolute', left: S * 0.26, top: S * 0.33, width: S * 0.08, height: S * 0.08, borderRadius: S * 0.04, backgroundColor: '#7dff8a', borderWidth: 1, borderColor: '#1c5a26' }} />
+      <View style={{ position: 'absolute', left: S * 0.46, top: S * 0.33, width: S * 0.08, height: S * 0.08, borderRadius: S * 0.04, backgroundColor: '#7dff8a', borderWidth: 1, borderColor: '#1c5a26' }} />
+      <View style={{ position: 'absolute', left: S * 0.38, top: S * 0.42, width: S * 0.05, height: S * 0.04, borderRadius: S * 0.02, backgroundColor: '#f2a0a8' }} />
+      {/* dark glasses + a tiny scarf, because she means business */}
+      <View style={{ position: 'absolute', left: S * 0.22, top: S * 0.31, width: S * 0.38, height: S * 0.1, borderRadius: 4, backgroundColor: 'rgba(10,10,20,0.85)' }} />
+      <View style={{ position: 'absolute', left: S * 0.24, top: S * 0.5, width: S * 0.34, height: S * 0.07, borderRadius: 4, backgroundColor: '#b2262b' }} />
+    </View>
+  );
+}
+
+export function Character({ who, size, gear }) {
+  if (who === 'billy') {
+    return (
+      <View style={{ width: FAKE_P.w * size, height: FAKE_P.h * size }}>
+        <Billy p={FAKE_P} ts={size} gear={gear || {}} />
+      </View>
+    );
+  }
+  if (who === 'wizard') return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.1 }}>🧙‍♂️</Text>;
+  if (who === 'natasha') return <Natasha size={size * 0.8} />;
+  if (who === 'max') return <Text style={{ fontSize: size * 1.3, lineHeight: size * 1.4 }}>🐈</Text>;
+  return null;
 }
