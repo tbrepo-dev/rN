@@ -11,7 +11,7 @@ const c = {
   boot: '#4a2c14',
 };
 
-export function Cletus({ p, ts }) {
+export function Billy({ p, ts }) {
   const w = p.w * ts;
   const h = p.h * ts;
   const stride = Math.floor(p.run * 2.2) % 2 === 0 ? 1 : -1;
@@ -33,6 +33,22 @@ export function Cletus({ p, ts }) {
         transform: [{ scaleX: p.facing }],
       }}
     >
+      {p.rush > 0 && (
+        <View
+          style={{
+            position: 'absolute',
+            left: -w * 0.5,
+            top: -h * 0.25,
+            width: w * 2,
+            height: h * 1.5,
+            borderRadius: w,
+            backgroundColor: 'rgba(130,255,90,0.35)',
+            borderWidth: 2,
+            borderColor: 'rgba(60,200,40,0.8)',
+            opacity: p.rush < 1.5 && Math.floor(p.rush * 10) % 2 === 0 ? 0.3 : 1,
+          }}
+        />
+      )}
       {/* straw hat: crown + brim */}
       <View style={{ position: 'absolute', top: 0, left: w * 0.2, width: w * 0.6, height: hatH * 0.8, backgroundColor: c.hat, borderTopLeftRadius: w * 0.3, borderTopRightRadius: w * 0.3 }} />
       <View style={{ position: 'absolute', top: hatH * 0.55, left: -w * 0.08, width: w * 1.16, height: hatH * 0.45, backgroundColor: c.hat, borderRadius: hatH * 0.3, borderBottomWidth: 2, borderColor: c.hatBand }} />
@@ -53,10 +69,19 @@ export function Cletus({ p, ts }) {
   );
 }
 
-const EMOJI = { chicken: '🐔', raccoon: '🦝', skunk: '🦨' };
+const EMOJI = { chicken: '🐔', raccoon: '🦝', skunk: '🦨', hound: '🐕', turkey: '🦃', bee: '🐝' };
 
 export function Critter({ e, ts }) {
-  const size = ts * 0.85;
+  const size = ts * (e.kind === 'bee' ? 0.6 : e.kind === 'turkey' ? 1.0 : 0.85);
+  const winding = e.kind === 'turkey' && e.state === 'wind';
+  const shake = winding ? Math.sin(e.t * 60) * ts * 0.06 : 0;
+  const hurt = e.hit > 0;
+  const flip = e.kind === 'bee' ? (e.dir > 0 ? 1 : -1) : e.dir > 0 ? -1 : 1;
+  const transform = e.alive
+    ? [{ translateX: shake }, { scaleX: flip }, { scaleY: e.kind === 'turkey' && e.state === 'dash' ? 0.9 : 1 }]
+    : e.squished
+    ? [{ scaleY: 0.25 }, { scaleX: flip }]
+    : [{ rotate: `${Math.min(e.squish * 540, 180)}deg` }, { scaleX: flip }];
   return (
     <View
       style={{
@@ -66,12 +91,32 @@ export function Critter({ e, ts }) {
         width: e.w * ts,
         height: e.h * ts,
         alignItems: 'center',
-        justifyContent: 'flex-end',
-        transform: [{ scaleY: e.alive ? 1 : 0.25 }, { scaleX: e.dir > 0 ? -1 : 1 }],
+        justifyContent: e.kind === 'bee' ? 'center' : 'flex-end',
+        opacity: e.alive ? (hurt && Math.floor(e.hit * 30) % 2 === 0 ? 0.4 : 1) : e.squished ? 1 : Math.max(0, 1 - e.squish * 2),
+        transform,
       }}
     >
       <Text style={{ fontSize: size, lineHeight: size * 1.15, includeFontPadding: false }}>{EMOJI[e.kind]}</Text>
+      {winding && <Text style={{ position: 'absolute', top: -ts * 0.5, fontSize: ts * 0.5 }}>❗</Text>}
     </View>
+  );
+}
+
+export function Cob({ c, ts }) {
+  const size = ts * 0.55;
+  return (
+    <Text
+      style={{
+        position: 'absolute',
+        left: c.x * ts - size * 0.25,
+        top: c.y * ts - size * 0.3,
+        fontSize: size,
+        lineHeight: size * 1.15,
+        transform: [{ rotate: `${c.age * 900}deg` }],
+      }}
+    >
+      🌽
+    </Text>
   );
 }
 

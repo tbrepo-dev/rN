@@ -143,7 +143,7 @@ test('an uncollected jug disappears after ~10 seconds', () => {
   assert.equal(g.items.length, 0);
 });
 
-test('shine crate grows Cletus', () => {
+test('shine crate grows Billy', () => {
   const g = createGame({ enemies: false });
   Object.assign(g.player, { x: 16.15, y: 6.1, vy: -15 });
   step(g, none);
@@ -158,6 +158,7 @@ test('shine crate grows Cletus', () => {
 test('level is beatable by a simple bot (terrain only)', () => {
   const g = createGame({ enemies: false });
   g.viewW = 20;
+  g.jugs = g.level.goalJugs; // the truck wants a full load; collecting is tested separately
   let t = 0;
   const bot = () => {
     const p = g.player;
@@ -166,11 +167,113 @@ test('level is beatable by a simple bot (terrain only)', () => {
     const wall = [0, 1, 2].some((i) => g.tiles[Math.floor(p.y + p.h - 0.1) - i]?.[Math.floor(front + 0.3)]);
     const noFloor = !g.tiles[GROUND_Y]?.[probeX] && !g.tiles[GROUND_Y - 1]?.[probeX];
     const want = p.onGround && (wall || noFloor);
-    return { left: false, right: true, jump: want || (!p.onGround && p.vy < 0 && p.jumping) };
+    // fell off a ledge over a pit with an air jump left: use it (fresh press every other frame)
+    const rescue = !p.onGround && p.airJumps > 0 && p.vy > 2 && p.y + p.h > 7 && !g.tiles[GROUND_Y]?.[Math.floor(p.x + p.w / 2)];
+    return { left: false, right: true, jump: want || (!p.onGround && p.vy < 0 && p.jumping) || (rescue && !g.prevJump) };
   };
   while (g.mode === 'playing' && t < 120) {
     step(g, bot(), STEP);
     t += STEP;
   }
   assert.equal(g.mode, 'won', `bot ended in ${g.mode} at x=${g.player.x.toFixed(1)} t=${t.toFixed(1)}`);
+});
+
+const nearGoal = (g) => Object.assign(g.player, { x: g.level.goalX, y: GROUND_Y - SMALL_H, vy: 0 });
+
+test('the truck will not leave without enough jugs', () => {
+  const g = createGame({ enemies: false });
+  g.jugs = g.level.goalJugs - 1;
+  nearGoal(g);
+  run(g, none, 0.3);
+  assert.equal(g.mode, 'playing');
+  assert.ok(g.effects.some((f) => f.text && f.text.includes('1 more')));
+  g.jugs = g.level.goalJugs;
+  run(g, none, 0.3);
+  assert.equal(g.mode, 'won');
+});
+
+test('corn cobs kill chickens from a distance; turkeys take two', () => {
+  const g = createGame();
+  run(g, none, 0.3);
+  const chicken = g.enemies[0];
+  Object.assign(g.player, { x: chicken.x - 5, facing: 1 });
+  chicken.awake = true;
+  step(g, { ...none, throw: true });
+  assert.equal(g.cobs.length, 1);
+  run(g, none, 1.2);
+  assert.equal(chicken.alive, false);
+  assert.ok(g.score >= 150);
+
+  const turkey = g.enemies.find((e) => e.kind === 'turkey');
+  assert.equal(turkey.hp, 2);
+  Object.assign(g.player, { x: turkey.x - 4, y: GROUND_Y - SMALL_H, vy: 0, vx: 0, facing: 1 });
+  turkey.awake = true;
+  turkey.state = 'rest';
+  turkey.stateT = 99;
+  step(g, { ...none, throw: true });
+  run(g, none, 0.6);
+  assert.equal(turkey.hp, 1);
+  assert.equal(turkey.alive, true);
+});
+
+test('bees cannot be stomped', () => {
+  const g = createGame();
+  const bee = g.enemies.find((e) => e.kind === 'bee');
+  bee.awake = true;
+  Object.assign(g.player, { x: bee.x, y: bee.y - 0.5, vy: 6 });
+  step(g, none);
+  assert.equal(g.mode, 'dying');
+});
+
+test('moonshine meter fills from jugs and Rush speeds Billy up', () => {
+  const g = createGame({ enemies: false });
+  g.shine = 8;
+  step(g, { ...none, rush: true });
+  assert.ok(g.player.rush > 5);
+  assert.equal(g.shine, 0);
+  run(g, { ...none, right: true }, 1);
+  assert.ok(g.player.vx > 9, `rush speed ${g.player.vx}`);
+  step(g, { ...none, rush: true }); // meter empty: no effect
+  g.shine = 3;
+  const g2 = createGame({ enemies: false });
+  g2.shine = 3;
+  step(g2, { ...none, rush: true });
+  assert.equal(g2.player.rush, 0);
+});
+
+test('hound chases once it spots Billy', () => {
+  const g = createGame();
+  const hound = g.enemies.find((e) => e.kind === 'hound');
+  hound.awake = true;
+  g.player.x = hound.x - 6;
+  g.player.y = hound.y;
+  const before = hound.x;
+  run(g, none, 0.4);
+  assert.ok(hound.chasing);
+  assert.ok(hound.x < before - 1, 'hound ran at him');
+});
+
+test('turkey winds up and then charges', () => {
+  const g = createGame();
+  const t = g.enemies.find((e) => e.kind === 'turkey');
+  t.awake = true;
+  t.cd = 0;
+  g.player.x = t.x - 4;
+  g.player.y = t.y;
+  const seen = new Set();
+  for (let i = 0; i < 120; i++) {
+    g.player.x = t.x - 4;
+    g.player.y = GROUND_Y - SMALL_H;
+    g.player.invuln = 9;
+    step(g, none);
+    seen.add(t.state);
+  }
+  assert.ok(seen.has('wind') && seen.has('dash'), [...seen].join());
+});
+
+test('the beehive barrel releases a swarm', () => {
+  const g = createGame({ enemies: false });
+  Object.assign(g.player, { x: 52.15, y: 6.1, vy: -15 });
+  step(g, none);
+  assert.equal(g.enemies.filter((e) => e.kind === 'bee').length, 3);
 });

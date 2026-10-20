@@ -10,7 +10,7 @@ export const LEVEL_W = 150;
 export const LEVEL_H = 11;
 export const GROUND_Y = 9; // top row of the ground
 
-// Builds "Cletus' Holler", the one and only level (for now).
+// Builds "Billy' Holler", the one and only level (for now).
 export function buildLevel() {
   const w = LEVEL_W;
   const h = LEVEL_H;
@@ -38,7 +38,7 @@ export function buildLevel() {
   const jugs = (x, y, n, dx = 1) => {
     for (let i = 0; i < n; i++) coins.push({ x: x + i * dx, y, taken: false });
   };
-  const enemy = (kind, x) => spawns.push({ kind, x });
+  const enemy = (kind, x, y) => spawns.push({ kind, x, y });
 
   // Ground with pits
   [[0, 38], [42, 66], [69, 100], [104, 128], [131, w]].forEach(([a, b]) => ground(a, b));
@@ -65,14 +65,16 @@ export function buildLevel() {
   // --- The creek bank ---
   hay(46, 6, 5);
   jugs(46, 5, 5);
-  crate(52, 5, 'jug');
+  crate(52, 5, 'bees'); // surprise: a hive
   enemy('chicken', 48);
-  enemy('chicken', 56);
+  enemy('hound', 57);
   jugs(58, 7, 3);
 
   // Pit #2 (3 wide)
   jugs(66, 6, 3);
-  enemy('skunk', 74);
+  enemy('bee', 67, 5.5);
+  enemy('turkey', 72);
+  enemy('skunk', 78);
   jugs(76, 7, 2);
 
   // Stump pyramid
@@ -83,7 +85,7 @@ export function buildLevel() {
   stump(86, 1);
   jugs(83, 5, 3);
   enemy('chicken', 90);
-  enemy('raccoon', 95);
+  enemy('hound', 94);
   crate(92, 5, 'shine');
 
   // Pit #3 with a floating plank
@@ -98,19 +100,38 @@ export function buildLevel() {
   enemy('skunk', 109);
   enemy('chicken', 116);
   enemy('raccoon', 121);
+  enemy('turkey', 126);
   stump(118, 2);
   stump(124, 3);
   jugs(125, 5, 2);
+
+  // Treetop trail: a stump to climb, then hay platforms high above the barn.
+  // Needs the double jump; pays out a big row of jugs.
+  stump(105, 3);
+  hay(107, 3, 3);
+  hay(112, 3, 3);
+  hay(117, 3, 3);
+  hay(122, 3, 4);
+  jugs(107, 2, 3);
+  jugs(112, 2, 3);
+  jugs(117, 2, 3);
+  jugs(122, 2, 4);
+  jugs(110.5, 1, 1);
+  enemy('bee', 114, 1.8);
 
   // Pit #4 (3 wide)
   jugs(128, 6, 3);
 
   // --- Home stretch ---
-  enemy('chicken', 136);
+  enemy('hound', 136);
+  crate(134, 5, 'bees');
   stump(139, 1);
   jugs(133, 7, 4);
 
   const checkpointX = 60;
   const goalX = 144;
-  return { w, h, tiles, crates, coins, spawns, checkpointX, goalX, startX: 2 };
+  // The truck needs about half of all the moonshine in the level
+  const total = coins.length + Object.values(crates).filter((c) => c === 'jug').length;
+  const goalJugs = Math.round(total * 0.5);
+  return { w, h, tiles, crates, coins, spawns, checkpointX, goalX, goalJugs, totalJugs: total, startX: 2 };
 }

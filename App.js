@@ -3,7 +3,9 @@ import { View, Text, Platform, Pressable, StyleSheet, useWindowDimensions } from
 import { StatusBar } from 'expo-status-bar';
 import { createGame, step, STEP } from './engine/game';
 import { GROUND_Y } from './engine/level';
-import { Cletus, Critter, Jug, Tile, Ground, Emoji } from './src/Sprites';
+import { Billy, Critter, Cob, Jug, Tile, Ground, Emoji } from './src/Sprites';
+import { SHINE_MAX } from './engine/game';
+import { initAudio, play, toggleMute, isMuted } from './src/sound';
 
 const ROWS = 11; // tile rows visible on screen
 
@@ -83,12 +85,16 @@ export default function App() {
   const [screen, setScreen] = useState('title'); // title | play
   const [, setFrame] = useState(0);
   const gameRef = useRef(null);
-  const inputRef = useRef({ left: false, right: false, jump: false });
+  const inputRef = useRef({ left: false, right: false, jump: false, throw: false, rush: false });
+  // A press shorter than one frame still counts: it is latched until the next game step.
+  const latchRef = useRef({ jump: false, throw: false, rush: false });
   if (!gameRef.current) gameRef.current = createGame();
   const g = gameRef.current;
   g.viewW = viewW;
+  if (Platform.OS === 'web') window.__billy = g; // handy for debugging in the browser
 
   const start = () => {
+    initAudio();
     gameRef.current = createGame();
     gameRef.current.viewW = viewW;
     setScreen('play');
@@ -105,9 +111,14 @@ export default function App() {
       acc += Math.min((now - last) / 1000, 0.1);
       last = now;
       while (acc >= STEP) {
-        step(gameRef.current, inputRef.current, STEP);
+        const cur = inputRef.current;
+        const l = latchRef.current;
+        const input = { ...cur, jump: cur.jump || l.jump, throw: cur.throw || l.throw, rush: cur.rush || l.rush };
+        l.jump = l.throw = l.rush = false;
+        step(gameRef.current, input, STEP);
         acc -= STEP;
       }
+      for (const ev of gameRef.current.events.splice(0)) play(ev);
       setFrame((f) => (f + 1) % 1e9);
       raf = requestAnimationFrame(tick);
     };
@@ -118,10 +129,11 @@ export default function App() {
   // Keyboard (web / simulator with hardware keyboard)
   useEffect(() => {
     if (Platform.OS !== 'web') return;
-    const map = { ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ArrowUp: 'jump', w: 'jump', ' ': 'jump', z: 'jump' };
+    const map = { ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ArrowUp: 'jump', w: 'jump', ' ': 'jump', z: 'jump', x: 'throw', j: 'throw', c: 'rush', k: 'rush' };
     const on = (v) => (e) => {
       const k = map[e.key];
       if (k) {
+        if (v && k in latchRef.current) latchRef.current[k] = true;
         inputRef.current[k] = v;
         e.preventDefault();
       }
@@ -136,15 +148,25 @@ export default function App() {
     };
   }, []);
 
-  // Multi-touch: left cluster = ◀ ▶, right side = JUMP
+  // Button layout (shared by hit-testing and drawing)
+  const jumpC = { x: width - width * 0.05 - 52, y: height - 28 - 52, r: 52 };
+  const throwC = { x: jumpC.x - 104, y: height - 28 - 38, r: 38 };
+  const shineC = { x: jumpC.x - 100, y: throwC.y - 38 - 14 - 32, r: 32 };
+  const hit = (t, c, k) => Math.hypot(t.pageX - c.x, t.pageY - c.y) < c.r * k;
+
+  // Multi-touch: left cluster = ◀ ▶, right cluster = JUMP / THROW / SHINE
   const onTouches = (e) => {
-    const next = { left: false, right: false, jump: false };
+    const next = { left: false, right: false, jump: false, throw: false, rush: false };
     for (const t of e.nativeEvent.touches) {
       const x = t.pageX;
-      if (x < width * 0.2) next.left = true;
+      if (hit(t, jumpC, 1.5)) next.jump = true;
+      else if (hit(t, throwC, 1.4)) next.throw = true;
+      else if (hit(t, shineC, 1.4)) next.rush = true;
+      else if (x < width * 0.2) next.left = true;
       else if (x < width * 0.4) next.right = true;
-      else if (x > width * 0.55) next.jump = true;
+      else if (x > width * 0.72) next.jump = true;
     }
+    for (const k of ['jump', 'throw', 'rush']) if (next[k]) latchRef.current[k] = true;
     inputRef.current = next;
   };
 
@@ -153,6 +175,8 @@ export default function App() {
   const camPx = -g.camX * ts;
 
   const hud = { lives: g.lives, jugs: g.jugs, score: g.score };
+  const meter = g.shine / SHINE_MAX;
+  const rushing = p.rush > 0;
   const inp = inputRef.current;
 
   return (
@@ -170,7 +194,11 @@ export default function App() {
           )
         )}
         {g.enemies.map((e, i) => e.x > g.camX - 2 && e.x < g.camX + viewW + 2 && <Critter key={i} e={e} ts={ts} />)}
-        <Cletus p={p} ts={ts} />
+        {g.cobs.map((c, i) => <Cob key={`c${i}`} c={c} ts={ts} />)}
+        <Billy p={p} ts={ts} />
+        <Text style={[styles.sign, { left: (level.goalX - 1.2) * ts, top: (GROUND_Y - 2.9) * ts, fontSize: ts * 0.42 }]}>
+          🏺 {Math.min(g.jugs, level.goalJugs)}/{level.goalJugs}
+        </Text>
         {g.effects.map((f, i) =>
           f.kind === 'puff' ? (
             <Emoji key={`f${i}`} ch="💨" x={f.x - 0.4} y={f.y - 0.5 + f.t} size={0.8} ts={ts} />
@@ -187,23 +215,52 @@ export default function App() {
       {/* HUD */}
       <View style={styles.hud} pointerEvents="none">
         <Text style={styles.hudText}>{'🤠'.repeat(Math.max(0, hud.lives))}</Text>
-        <Text style={styles.hudText}>🏺 ×{hud.jugs}</Text>
+        <Text style={styles.hudText}>🏺 {hud.jugs}/{level.goalJugs}</Text>
         <Text style={styles.hudText}>{String(hud.score).padStart(6, '0')}</Text>
       </View>
+
+      {/* Sound toggle */}
+      <Pressable style={styles.mute} onPress={() => { toggleMute(); setFrame((f) => f + 1); }} hitSlop={10}>
+        <Text style={{ fontSize: 20 }}>{isMuted() ? '🔇' : '🔊'}</Text>
+      </Pressable>
 
       {/* On-screen controls */}
       {screen === 'play' && (
         <View style={styles.controls} pointerEvents="none">
           <View style={[styles.btn, { left: width * 0.04, opacity: inp.left ? 0.8 : 0.4 }]}><Text style={styles.btnText}>◀</Text></View>
           <View style={[styles.btn, { left: width * 0.04 + 84, opacity: inp.right ? 0.8 : 0.4 }]}><Text style={styles.btnText}>▶</Text></View>
-          <View style={[styles.btn, styles.jump, { right: width * 0.05, opacity: inp.jump ? 0.8 : 0.4 }]}><Text style={styles.btnText}>JUMP</Text></View>
+          <View style={[styles.btn, styles.jump, { left: jumpC.x - jumpC.r, top: jumpC.y - jumpC.r, bottom: undefined, opacity: inp.jump ? 0.8 : 0.4 }]}><Text style={styles.btnText}>JUMP</Text></View>
+          <View style={[styles.btn, { left: throwC.x - throwC.r, top: throwC.y - throwC.r, bottom: undefined, width: throwC.r * 2, height: throwC.r * 2, borderRadius: throwC.r, opacity: inp.throw ? 0.8 : 0.45 }]}>
+            <Text style={{ fontSize: 30 }}>🌽</Text>
+          </View>
+          <View
+            style={[
+              styles.btn,
+              {
+                left: shineC.x - shineC.r,
+                top: shineC.y - shineC.r,
+                bottom: undefined,
+                width: shineC.r * 2,
+                height: shineC.r * 2,
+                borderRadius: shineC.r,
+                overflow: 'hidden',
+                borderWidth: 3,
+                borderColor: meter >= 1 || rushing ? '#9dff6a' : '#e8c35a',
+                opacity: inp.rush ? 0.9 : meter >= 1 ? 0.85 : 0.55,
+              },
+            ]}
+          >
+            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${(rushing ? p.rush / 6 : meter) * 100}%`, backgroundColor: rushing || meter >= 1 ? '#5fd13a' : '#a86a32' }} />
+            <Text style={[styles.btnText, { fontSize: 11 }]}>{rushing ? 'RUSH!' : meter >= 1 ? 'RUSH' : 'SHINE'}</Text>
+          </View>
         </View>
       )}
 
       {screen === 'title' && (
         <Pressable style={styles.overlay} onPress={start}>
           <Text style={styles.title}>BILLY BUBS</Text>
-          <Text style={styles.sub}>Get Billy to his pickup truck, y'all!</Text>
+          <Text style={styles.sub}>Collect {level.goalJugs} jugs of shine and get Billy to his truck, y'all!</Text>
+          <Text style={styles.hint}>🌽 throw corn cobs  •  jump twice for a double jump{'\n'}fill the SHINE meter, then hit RUSH for speed and triple cobs</Text>
           <Text style={styles.tap}>Tap to start</Text>
         </Pressable>
       )}
@@ -235,6 +292,9 @@ const styles = StyleSheet.create({
   btn: { position: 'absolute', bottom: 28, width: 72, height: 72, borderRadius: 36, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
   jump: { width: 104, height: 104, borderRadius: 52 },
   btnText: { color: '#fff', fontSize: 22, fontWeight: '900' },
+  sign: { position: 'absolute', fontWeight: '900', color: '#fff', ...shadow },
+  mute: { position: 'absolute', top: 38, right: 44, opacity: 0.8 },
+  hint: { fontSize: 14, color: '#f6e3b4', marginTop: 12, textAlign: 'center', lineHeight: 20, ...shadow },
   pop: { position: 'absolute', fontWeight: '900', color: '#fff', ...shadow },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(30,20,10,0.72)', alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: 44, fontWeight: '900', color: '#f6d55c', letterSpacing: 2, ...shadow },

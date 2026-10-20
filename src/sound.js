@@ -1,0 +1,119 @@
+// Tiny synth: banjo-ish music loop + sound effects. Web only (Web Audio); a no-op on native.
+import { Platform } from 'react-native';
+
+let ctx = null;
+let master = null;
+let muted = false;
+let timer = null;
+let nextTime = 0;
+let noteIdx = 0;
+
+// G - C - D - G, a bluegrass-y banjo roll (arpeggio order per chord)
+const CHORDS = {
+  G: [196.0, 246.94, 293.66, 392.0],
+  C: [261.63, 329.63, 392.0, 523.25],
+  D: [293.66, 369.99, 440.0, 587.33],
+};
+const PROGRESSION = ['G', 'G', 'C', 'G', 'D', 'D', 'G', 'G'];
+const ROLL = [0, 3, 2, 1, 3, 2, 1, 2];
+const EIGHTH = 60 / 150 / 2;
+
+function pluck(freq, t, dur = 0.22, vol = 0.2, type = 'sawtooth') {
+  const o = ctx.createOscillator();
+  const f = ctx.createBiquadFilter();
+  const g = ctx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(3200, t);
+  f.frequency.exponentialRampToValueAtTime(500, t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(f).connect(g).connect(master);
+  o.start(t);
+  o.stop(t + dur + 0.02);
+}
+
+function slide(from, to, t, dur, vol = 0.2, type = 'square') {
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(from, t);
+  o.frequency.exponentialRampToValueAtTime(to, t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(master);
+  o.start(t);
+  o.stop(t + dur + 0.02);
+}
+
+function schedule() {
+  if (!ctx) return;
+  while (nextTime < ctx.currentTime + 0.3) {
+    const bar = Math.floor(noteIdx / 8) % PROGRESSION.length;
+    const chord = CHORDS[PROGRESSION[bar]];
+    const n = ROLL[noteIdx % 8];
+    pluck(chord[n] * (n === 0 ? 0.5 : 1), nextTime, 0.25, n === 0 ? 0.13 : 0.08);
+    nextTime += EIGHTH;
+    noteIdx++;
+  }
+}
+
+export function initAudio() {
+  if (Platform.OS !== 'web' || ctx) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC();
+    if (ctx.resume) ctx.resume();
+    master = ctx.createGain();
+    master.gain.value = muted ? 0 : 0.6;
+    master.connect(ctx.destination);
+    nextTime = ctx.currentTime + 0.1;
+    timer = setInterval(schedule, 100);
+  } catch (e) {
+    ctx = null;
+  }
+}
+
+export function toggleMute() {
+  muted = !muted;
+  if (master) master.gain.value = muted ? 0 : 0.6;
+  return muted;
+}
+
+export const isMuted = () => muted;
+
+const SFX = {
+  jump: (t) => slide(330, 660, t, 0.14, 0.12),
+  airjump: (t) => {
+    slide(440, 880, t, 0.16, 0.12);
+    pluck(1318, t + 0.05, 0.12, 0.08, 'triangle');
+  },
+  coin: (t) => {
+    pluck(988, t, 0.1, 0.12, 'triangle');
+    pluck(1318, t + 0.06, 0.2, 0.12, 'triangle');
+  },
+  stomp: (t) => slide(220, 70, t, 0.14, 0.2),
+  hit: (t) => slide(300, 150, t, 0.08, 0.15),
+  throw: (t) => slide(500, 900, t, 0.08, 0.07, 'triangle'),
+  barrel: (t) => slide(140, 90, t, 0.12, 0.25, 'triangle'),
+  bees: (t) => {
+    for (let i = 0; i < 6; i++) slide(180 + (i % 2) * 20, 200, t + i * 0.05, 0.06, 0.06, 'sawtooth');
+  },
+  powerup: (t) => [392, 494, 587, 784].forEach((f, i) => pluck(f, t + i * 0.07, 0.2, 0.12, 'triangle')),
+  rush: (t) => [196, 294, 392, 588, 784].forEach((f, i) => pluck(f, t + i * 0.05, 0.25, 0.13)),
+  hurt: (t) => slide(400, 120, t, 0.3, 0.18, 'sawtooth'),
+  die: (t) => [392, 330, 262, 196].forEach((f, i) => pluck(f, t + i * 0.16, 0.3, 0.16, 'triangle')),
+  win: (t) => [392, 392, 523, 659, 784, 659, 784].forEach((f, i) => pluck(f, t + i * 0.11, 0.3, 0.14)),
+  gameover: (t) => [330, 262, 196].forEach((f, i) => pluck(f, t + i * 0.25, 0.4, 0.14, 'triangle')),
+};
+
+export function play(name) {
+  if (!ctx || muted) return;
+  const fn = SFX[name];
+  if (fn) {
+    try {
+      fn(ctx.currentTime);
+    } catch (e) {}
+  }
+}
