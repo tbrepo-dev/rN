@@ -123,14 +123,26 @@ export function Tile({ type, x, y, ts }) {
           ))}
         </View>
       );
-    case 3: // ? crate
+    case 3: // moonshine barrel
     case 4: {
       const used = type === 4;
+      const wood = used ? '#5a4a3c' : '#b8742f';
+      const plank = used ? '#46382c' : '#8a5220';
+      const iron = used ? '#5d6166' : '#3d4a56';
       return (
-        <View style={[base, { backgroundColor: used ? '#6d5a48' : '#d98b2b', borderWidth: 3, borderColor: used ? '#4a3d31' : '#8a4b0f', alignItems: 'center', justifyContent: 'center' }]}>
-          {!used && <Text style={{ fontSize: ts * 0.6, fontWeight: '900', color: '#fff3c4' }}>?</Text>}
-          <View style={{ position: 'absolute', top: 2, left: 2, width: 4, height: 4, borderRadius: 2, backgroundColor: used ? '#4a3d31' : '#5b2f06' }} />
-          <View style={{ position: 'absolute', top: 2, right: 2, width: 4, height: 4, borderRadius: 2, backgroundColor: used ? '#4a3d31' : '#5b2f06' }} />
+        <View style={[base, { backgroundColor: wood, borderWidth: 2, borderColor: plank, borderRadius: ts * 0.22, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }]}>
+          {[0.33, 0.66].map((f) => (
+            <View key={f} style={{ position: 'absolute', top: 0, bottom: 0, left: ts * f - 1, width: 2, backgroundColor: plank }} />
+          ))}
+          <View style={{ position: 'absolute', left: 0, right: 0, top: ts * 0.14, height: ts * 0.1, backgroundColor: iron }} />
+          <View style={{ position: 'absolute', left: 0, right: 0, bottom: ts * 0.14, height: ts * 0.1, backgroundColor: iron }} />
+          {used ? (
+            <View style={{ width: ts * 0.3, height: ts * 0.18, borderRadius: ts * 0.1, backgroundColor: '#1d150e' }} />
+          ) : (
+            <View style={{ paddingHorizontal: ts * 0.07, backgroundColor: '#f1dfb0', borderRadius: 3, transform: [{ rotate: '-4deg' }] }}>
+              <Text style={{ fontSize: ts * 0.26, lineHeight: ts * 0.3, fontWeight: '900', color: '#7a2a10', letterSpacing: 1 }}>XXX</Text>
+            </View>
+          )}
         </View>
       );
     }

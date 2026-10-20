@@ -16,7 +16,7 @@ npm test              # engine tests (physics, stomping, crates, level is beatab
 
 - **◀ ▶** (bottom-left) run, **JUMP** (bottom-right) — hold for a higher jump.
 - Stomp the chickens, raccoons and skunks. Side contact costs a life.
-- Bump `?` crates from below: jugs of moonshine, or a glowing **shine** jug that makes Billy big (one free hit).
+- Bump moonshine barrels from below: jugs of moonshine, or a glowing **shine** jug that makes Billy big (one free hit).
 - Grab jugs for points, hit the mailbox for a checkpoint, reach the pickup truck to win.
 
 ## Layout
