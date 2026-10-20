@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Platform, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { createGame, step, STEP, SHINE_MAX, AMMO_MAX, GEAR, LEVEL_COUNT, continueGame, startPlaying, loadLevel, advanceScene, chooseScene, startScene } from './engine/game';
-import { Billy, Critter, Cob, Ray, Shot, Jug, OneUp, GearItem, Tile, Ground, Emoji, Booth, CastleGate, Fridge, gearEmoji } from './src/Sprites';
+import { Billy, Critter, Cob, Ray, Shot, Jug, OneUp, GearItem, Tile, Ground, Emoji, Booth, CastleGate, Fridge, Tequila, FlameBall, HellGate, gearEmoji } from './src/Sprites';
 import { SceneView, EndingView } from './src/Scenes';
 import { initAudio, play, toggleMute, isMuted, setMusicTheme } from './src/sound';
 
@@ -13,6 +13,7 @@ const THEME = {
   medieval: { sky: '#e9a46b', icon: '🪙', checkpoint: '🚩', hills: ['#7d9a5a', '#667f4a'] },
   tower: { sky: '#241a3f', icon: '🍺', checkpoint: '🔔', hills: ['#2d2150', '#2d2150'] },
   japan: { sky: '#f6a5b0', icon: '🐟', checkpoint: '⛩️', hills: ['#b58aa5', '#9a7aa0'] },
+  hell: { sky: '#240606', icon: '👻', checkpoint: '⛓️', hills: ['#4a120e', '#33100c'] },
 };
 
 const STORY = {
@@ -27,6 +28,10 @@ const STORY = {
   4: {
     title: "THE WIZARD'S FRIDGE",
     text: "Climb the girders to the top of the tower while Honkey Kong, the albino ape in overalls, rolls barrels down at you.\nJump them, shoot them, slash them or block them, then grab the wizard's beer from the fridge!",
+  },
+  6: {
+    title: 'HELL',
+    text: "Billy wakes up in Hell, and it is HOT.\nThe gates are guarded by Pack Billy, a big, hungry, yellow hillbilly Pac-Man. Drink flaming tequila, BELCH flame balls, and feed him five. When he's full, he lets you leave.",
   },
   5: {
     title: 'THE PAGODA',
@@ -64,6 +69,7 @@ const DECOR = {
   medieval: { items: [6, 18, 38, 52, 66, 77, 98, 117, 127, 147], ch: '🔥', size: 1.0, lift: 1.0 },
   tower: { items: [], ch: '', size: 1, lift: 1 },
   japan: { items: [7, 19, 33, 47, 70, 80, 96, 119, 133, 150], ch: '🏮', size: 1.1, lift: 1.1 },
+  hell: { items: [5, 17, 36, 49, 66, 77, 95, 108, 124, 133, 144, 158], ch: '🔥', size: 1.1, lift: 1.0 },
 };
 
 const Scenery = React.memo(function Scenery({ level, ts }) {
@@ -71,6 +77,7 @@ const Scenery = React.memo(function Scenery({ level, ts }) {
   const GROUND_Y = level.groundY;
   return (
     <>
+      {level.theme === 'hell' && <Emoji ch="🪦" x={0.4} y={GROUND_Y - 1.2} size={1.2} ts={ts} />}
       {level.theme === 'japan' && (
         <>
           <Emoji ch="⛩️" x={-0.3} y={GROUND_Y - 3.2} size={3.4} ts={ts} />
@@ -131,6 +138,18 @@ function Background({ camX, ts, theme, time, groundY, level }) {
             <View key={f} style={{ position: 'absolute', left: `${f * 100 - 6}%`, top: '8%', width: '12%', height: '38%', borderTopLeftRadius: 80, borderTopRightRadius: 80, backgroundColor: '#32265c', borderWidth: 3, borderColor: '#4d3f86' }} />
           ))}
           <View style={{ position: 'absolute', left: '47%', top: '4%', width: ts * 1.4, height: ts * 1.4, borderRadius: ts, backgroundColor: '#efe9ff' }} />
+        </>
+      )}
+      {theme === 'hell' && (
+        <>
+          <View style={{ position: 'absolute', left: 0, right: 0, top: GROUND_Y * ts - ts * 5, height: ts * 7, backgroundColor: '#7a1608', opacity: 0.5 }} />
+          <View style={{ position: 'absolute', left: 0, right: 0, top: GROUND_Y * ts - ts * 2, bottom: 0, backgroundColor: '#ff5a1a', opacity: 0.7 + 0.15 * Math.sin(time * 3) }} />
+          {Array.from({ length: 14 }, (_, i) => (
+            <View key={i} style={{ position: 'absolute', left: i * ts * 5 - ((camX * ts * 0.25) % (ts * 5)) - ts, top: GROUND_Y * ts - ts * (2.5 + (i % 3)), width: 0, height: 0, borderLeftWidth: ts * 1.4, borderRightWidth: ts * 1.4, borderBottomWidth: ts * (3 + (i % 3)), borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#1a0707' }} />
+          ))}
+          {Array.from({ length: 16 }, (_, i) => (
+            <Text key={i} style={{ position: 'absolute', left: `${(i * 79) % 100}%`, top: `${100 - ((i * 31 + time * 16) % 100)}%`, fontSize: 10 + (i % 3) * 5, opacity: 0.7 }}>🔥</Text>
+          ))}
         </>
       )}
       {theme === 'japan' && (
@@ -306,10 +325,17 @@ export default function App() {
   const meter = g.shine / SHINE_MAX;
   const rushing = p.rush > 0;
   const inp = inputRef.current;
-  const boss = g.enemies.find((e) => (e.kind === 'boss' || e.kind === 'max') && e.alive && e.awake);
-  const bossInfo = boss && (boss.kind === 'max' ? { name: '🐈 MAX THE TABBY', hp: 30, color: '#e8873a' } : { name: '👑 WITCH QUEEN', hp: 14, color: '#b04bff' });
+  const boss = g.enemies.find((e) => (e.kind === 'boss' || e.kind === 'max' || e.kind === 'packbilly') && e.alive && e.awake);
+  const bossInfo =
+    boss &&
+    (boss.kind === 'max'
+      ? { name: '🐈 MAX THE TABBY', max: 30, cur: boss.hp, color: '#e8873a' }
+      : boss.kind === 'packbilly'
+      ? { name: boss.full ? '🟡 PACK BILLY: FULL!' : `🟡 PACK BILLY: FED ${boss.fed}/5`, max: 5, cur: boss.fed, color: '#ffd41f' }
+      : { name: '👑 WITCH QUEEN', max: 14, cur: boss.hp, color: '#b04bff' });
   const armor = Math.max(0, p.armor);
   const useRay = g.gear.raygun && g.ammo > 0;
+  const useFlame = g.tequila > 0;
   const gearIcons = Object.keys(g.gear).filter((k) => g.gear[k]);
   const bossAlive = level.boss && g.enemiesEnabled && !g.bossDefeated;
   const signText =
@@ -317,7 +343,7 @@ export default function App() {
       ? '👑 Beat the Witch Queen'
       : level.goalKind === 'fridge'
       ? "🍺 The wizard's beer"
-      : level.goalKind === 'dojo'
+      : level.goalKind === 'dojo' || level.goalKind === 'hellgate'
       ? ''
       : `${th.icon} ${Math.min(g.jugs, level.goalJugs)}/${level.goalJugs}`;
 
@@ -331,11 +357,14 @@ export default function App() {
         <Terrain tiles={g.tiles} level={level} ts={ts} version={g.version} theme={theme} />
         {level.goalKind === 'booth' && <Booth x={level.goalX - 0.15} y={GROUND_Y - 2.6} ts={ts} ready={g.jugs >= level.goalJugs} t={g.time} />}
         {level.goalKind === 'castle' && <CastleGate x={level.goalX - 0.9} y={GROUND_Y - 2.4} ts={ts} open={!bossAlive} />}
+        {level.goalKind === 'hellgate' && <HellGate x={level.goalX - 2} y={GROUND_Y - 4.4} ts={ts} open={g.bossDefeated} t={g.time} />}
         {level.goalKind === 'fridge' && <Fridge x={level.goalX - 0.7} y={level.goalFloor - 2.3} ts={ts} t={g.time} />}
         {level.lives.map((l, i) => !l.taken && <OneUp key={`l${i}`} x={l.x} y={l.y} ts={ts} t={g.time} />)}
         {g.coins.map((c, i) => !c.taken && c.x > g.camX - 1 && c.x < g.camX + viewW + 1 && <Jug key={i} x={c.x} y={c.y} ts={ts} t={g.time} kind={level.collectible} />)}
         {g.items.map((it, i) =>
-          it.kind === 'gear' ? (
+          it.kind === 'tequila' ? (
+            <Tequila key={`i${i}`} it={it} ts={ts} t={g.time} />
+          ) : it.kind === 'gear' ? (
             <GearItem key={`i${i}`} it={it} ts={ts} t={g.time} />
           ) : it.kind === 'life' ? (
             <OneUp key={`i${i}`} x={it.x - 0.1} y={it.y - 0.1} ts={ts} t={g.time} />
@@ -346,8 +375,9 @@ export default function App() {
         {g.enemies.map((e, i) => e.x > g.camX - 3 && e.x < g.camX + viewW + 3 && <Critter key={i} e={e} ts={ts} />)}
         {g.cobs.map((c, i) => <Cob key={`c${i}`} c={c} ts={ts} />)}
         {g.rays.map((r, i) => <Ray key={`r${i}`} r={r} ts={ts} />)}
+        {g.belches.map((f, i) => <FlameBall key={`b${i}`} f={f} ts={ts} />)}
         {g.shots.map((s, i) => <Shot key={`s${i}`} s={s} ts={ts} />)}
-        <Billy p={p} ts={ts} gear={g.gear} />
+        <Billy p={p} ts={ts} gear={g.gear} lit={g.tequila} t={g.time} />
         <Text style={[styles.sign, { left: (level.goalX - (level.goalKind === 'castle' ? 4.2 : 1.4)) * ts, top: (GROUND_Y - (level.goalKind === 'castle' ? 3.2 : 2.9)) * ts, fontSize: ts * 0.42 }]}>{signText}</Text>
         {g.effects.map((f, i) =>
           f.kind === 'puff' ? (
@@ -371,8 +401,9 @@ export default function App() {
         </Text>
         <Text style={styles.hudText}>{String(hud.score).padStart(6, '0')}</Text>
       </View>
-      {(gearIcons.length > 0 || armor > 0) && (
+      {(gearIcons.length > 0 || armor > 0 || g.tequila > 0) && (
         <View style={styles.hud2} pointerEvents="none">
+          {g.tequila > 0 && <Text style={styles.hudSmall}>🔥 ×{g.tequila}</Text>}
           {armor > 0 && <Text style={styles.hudSmall}>{'🛡️'.repeat(Math.min(armor, 4))}</Text>}
           {g.gear.raygun && <Text style={styles.hudSmall}>⚡ {g.ammo}/{AMMO_MAX}</Text>}
           <Text style={styles.hudSmall}>{gearIcons.map(gearEmoji).join(' ')}</Text>
@@ -382,7 +413,7 @@ export default function App() {
         <View style={styles.bossBar} pointerEvents="none">
           <Text style={styles.bossName}>{bossInfo.name}</Text>
           <View style={styles.bossTrack}>
-            <View style={[styles.bossFill, { width: `${Math.max(0, boss.hp / bossInfo.hp) * 100}%`, backgroundColor: bossInfo.color }]} />
+            <View style={[styles.bossFill, { width: `${Math.max(0, bossInfo.cur / bossInfo.max) * 100}%`, backgroundColor: bossInfo.color }]} />
           </View>
         </View>
       )}
@@ -403,9 +434,9 @@ export default function App() {
           <View style={[styles.btn, { left: leftC.x - leftC.r, opacity: inp.left ? 0.8 : 0.4 }]}><Text style={styles.btnText}>◀</Text></View>
           <View style={[styles.btn, { left: rightC.x - rightC.r, opacity: inp.right ? 0.8 : 0.4 }]}><Text style={styles.btnText}>▶</Text></View>
           <View style={[styles.btn, styles.jump, { left: jumpC.x - jumpC.r, top: jumpC.y - jumpC.r, bottom: undefined, opacity: inp.jump ? 0.8 : 0.4 }]}><Text style={styles.btnText}>JUMP</Text></View>
-          <View style={[styles.btn, { left: throwC.x - throwC.r, top: throwC.y - throwC.r, bottom: undefined, width: throwC.r * 2, height: throwC.r * 2, borderRadius: throwC.r, opacity: inp.throw ? 0.8 : 0.45, borderWidth: useRay ? 3 : 0, borderColor: '#58e07a' }]}>
-            <Text style={{ fontSize: useRay ? 26 : 30 }}>{useRay ? '🔫' : '🌽'}</Text>
-            {useRay && <Text style={[styles.btnText, { fontSize: 11 }]}>⚡{g.ammo}</Text>}
+          <View style={[styles.btn, { left: throwC.x - throwC.r, top: throwC.y - throwC.r, bottom: undefined, width: throwC.r * 2, height: throwC.r * 2, borderRadius: throwC.r, opacity: inp.throw ? 0.8 : 0.45, borderWidth: useRay || useFlame ? 3 : 0, borderColor: useFlame ? '#ff8a2a' : '#58e07a' }]}>
+            <Text style={{ fontSize: useRay || useFlame ? 26 : 30 }}>{useFlame ? '🔥' : useRay ? '🔫' : '🌽'}</Text>
+            {useFlame ? <Text style={[styles.btnText, { fontSize: 11 }]}>BELCH ×{g.tequila}</Text> : useRay && <Text style={[styles.btnText, { fontSize: 11 }]}>⚡{g.ammo}</Text>}
             {g.gear.sword && <Text style={{ position: 'absolute', top: 2, right: 6, fontSize: 14 }}>🗡️</Text>}
           </View>
           <View
@@ -452,6 +483,7 @@ export default function App() {
           {g.levelNo === 2 && <Text style={styles.hint}>Aliens drop ⚡ ammo for the ray gun.{'\n'}Your 🌽 button fires the ray gun whenever you have ammo.</Text>}
           {g.levelNo === 3 && <Text style={styles.hint}>🗡️ Fire slashes enemies up close, then shoots.{'\n'}Hold 🛡️ to block from the front.</Text>}
           {g.levelNo === 4 && <Text style={styles.hint}>Hug the edge of a girder and jump up through the gap. Barrels roll toward you!{'\n'}Shoot or slash them, or hold 🛡️ to block.</Text>}
+          {g.levelNo === 6 && <Text style={styles.hint}>Grab flaming tequila 🔥, then tap FIRE to BELCH a flame ball.{'\n'}Pack Billy eats them. Feed him 5. He can't be hurt, so keep moving!</Text>}
           {g.levelNo === 5 && <Text style={styles.hint}>Jump Max's shockwaves, and hit him while he's winded: he takes DOUBLE damage.{'\n'}Grab the 1UP barrel on the rooftops.</Text>}
           <Text style={styles.tap}>Tap to begin</Text>
         </Pressable>

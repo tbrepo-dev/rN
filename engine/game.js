@@ -14,6 +14,8 @@ const RUSH_TIME = 6;
 const JUG_LIFETIME = 10;
 const LIFE_MAX = 9;
 const LIFE_EVERY = 25; // an extra life for every 25 things collected
+const TEQUILA_MAX = 3;
+export const FED_TO_FULL = 5; // flame balls it takes to fill Pack Billy up
 
 const C = {
   gravity: 55,
@@ -89,6 +91,13 @@ const ENEMY_KINDS = {
   samurai: { ai: 'charge', speed: 1.4, dash: 6.5, wind: 0.4, dashT: 0.4, trigger: 2.6, w: 0.9, h: 1.0, edgeTurn: true, hp: 3, stomp: true },
   crow: { ai: 'fly', w: 0.65, h: 0.55, hp: 1, stomp: false, fly: true },
   max: { ai: 'max', speed: 1.2, w: 2.2, h: 1.9, edgeTurn: false, hp: 30, stomp: true, score: 5000 },
+
+  // Level 6: Hell
+  imp: { ai: 'ninja', shot: 'fire', speed: 3, w: 0.75, h: 0.8, edgeTurn: false, hp: 1, stomp: true },
+  demon: { ai: 'charge', speed: 1.2, dash: 7, wind: 0.6, w: 1.1, h: 1.25, edgeTurn: true, hp: 3, stomp: true },
+  ember: { ai: 'fly', w: 0.6, h: 0.6, hp: 1, stomp: false, fly: true },
+  // Pack Billy can't be hurt. He can only be fed.
+  packbilly: { ai: 'pack', speed: 3, w: 2.4, h: 2.4, edgeTurn: false, hp: 999, stomp: false, invuln: true },
 };
 
 export function createGame({ enemies = true, level = 1 } = {}) {
@@ -107,6 +116,9 @@ export function createGame({ enemies = true, level = 1 } = {}) {
     lives: 3,
     gear: {}, // name -> true; carried across levels
     ammo: 0,
+    tequila: 0, // flaming tequila drunk, ready to belch
+    tequilaT: 2,
+    tequilaIdx: 0,
     checkpoint: 2,
     checkpointFloor: 9,
     checkpointHit: false,
@@ -122,6 +134,7 @@ export function createGame({ enemies = true, level = 1 } = {}) {
     items: [],
     cobs: [],
     rays: [],
+    belches: [],
     shots: [],
     effects: [],
     events: [], // sound cues for the UI to drain
@@ -170,7 +183,7 @@ export function continueGame(g) {
 
 // ---- Cutscenes --------------------------------------------------------------
 export function startScene(g, id) {
-  g.scene = { id, idx: 0 };
+  g.scene = { id, idx: 0, t: 0 };
   g.mode = 'scene';
   emit(g, 'scene');
 }
@@ -179,6 +192,7 @@ export function advanceScene(g) {
   const sc = SCENES[g.scene.id];
   if (g.scene.idx < sc.lines.length - 1) {
     g.scene.idx++;
+    g.scene.t = 0;
     return;
   }
   if (sc.choice) return; // the player has to pick
@@ -256,6 +270,7 @@ export function respawn(g) {
   g.items = [];
   g.cobs = [];
   g.rays = [];
+  g.belches = [];
   g.shots = [];
   g.effects = [];
   g.prevJump = false;
@@ -263,7 +278,7 @@ export function respawn(g) {
   g.prevRush = false;
   g.enemies = g.enemiesEnabled
     ? g.level.spawns
-        .filter((s) => (s.x >= g.checkpoint - 2 || ENEMY_KINDS[s.kind].always) && !((s.kind === 'boss' || s.kind === 'max') && g.bossDefeated))
+        .filter((s) => (s.x >= g.checkpoint - 2 || ENEMY_KINDS[s.kind].always) && !((s.kind === 'boss' || s.kind === 'max' || s.kind === 'packbilly') && g.bossDefeated))
         .map((s) => makeEnemy(s, g.level.groundY))
     : [];
   g.camX = clamp(g.player.x - g.viewW * 0.3, 0, g.level.w - g.viewW);
@@ -301,6 +316,8 @@ function makeEnemy(s, groundY = 9) {
     air: 0,
     arm: 0,
     slams: 0,
+    fed: 0, // Pack Billy: flame balls eaten so far
+    full: false,
   };
 }
 
@@ -433,13 +450,16 @@ const YEEHAWS = ['Yeehaw!', 'Hoo-wee!', 'Whoa nelly!', 'Dang!'];
 export function step(g, input, dt = STEP) {
   g.time += dt;
   if (g.toast && (g.toast.t -= dt) <= 0) g.toast = null;
+  if (g.mode === 'scene' && g.scene) g.scene.t += dt;
   if (g.mode === 'dying') return stepDying(g, dt);
   if (g.mode !== 'playing') return;
 
   updatePlayer(g, input, dt);
   updateCobs(g, dt);
   updateRays(g, dt);
+  updateBelches(g, dt);
   updateEnemies(g, dt);
+  updateTequila(g, dt);
   updateShots(g, dt);
   updateItems(g, dt);
   collide(g);
@@ -467,13 +487,13 @@ export function step(g, input, dt = STEP) {
   g.camX += (target - g.camX) * Math.min(1, dt * 8);
 }
 
-const COLLECT_NAMES = { jug: 'jugs', crystal: 'crystals', coin: 'coins', fish: 'fish' };
+const COLLECT_NAMES = { jug: 'jugs', crystal: 'crystals', coin: 'coins', fish: 'fish', soul: 'souls' };
 
 function checkGoal(g) {
   const p = g.player;
   const gy = g.level.groundY;
   g.truckMsgT = Math.max(0, g.truckMsgT - STEP);
-  if (g.level.goalKind === 'dojo') return; // Max's defeat ends this level
+  if (g.level.goalKind === 'dojo' || g.level.goalKind === 'hellgate') return; // the boss's defeat ends the level
   if (g.level.goalKind === 'fridge') {
     // Grab the beer: reach the fridge on the top girder
     if (Math.abs(p.x + p.w / 2 - g.level.goalX) < 1.1 && p.onGround && Math.abs(p.y + p.h - g.level.goalFloor) < 0.2) {
@@ -550,6 +570,7 @@ function updatePlayer(g, input, dt) {
 
   p.throwCd = Math.max(0, p.throwCd - dt);
   p.slash = Math.max(0, p.slash - dt);
+  p.belch = Math.max(0, (p.belch || 0) - dt);
   if (throwPressed && p.throwCd <= 0 && !p.shielding) fire(g, rushing);
 
   let gravity = C.gravity;
@@ -586,6 +607,7 @@ function slashBox(g) {
 
 function fire(g, triple) {
   const p = g.player;
+  if (g.tequila > 0) return belch(g);
   if (g.gear.sword) {
     const box = slashBox(g);
     if (g.enemies.some((e) => e.alive && overlap(box, e)) || g.shots.some((s) => overlap(box, s))) return slash(g, box);
@@ -593,6 +615,73 @@ function fire(g, triple) {
   if (g.gear.raygun && g.ammo > 0) return shootRay(g, triple);
   if (g.cobs.length < C.maxCobs) throwCobs(g, triple);
   p.throwCd = C.throwCooldown;
+}
+
+// Burp up a flame ball: slow, big, and delicious to Pack Billy
+function belch(g) {
+  const p = g.player;
+  g.tequila--;
+  p.throwCd = 0.45;
+  p.belch = 0.4;
+  g.belches.push({ x: p.x + p.w / 2 + p.facing * 0.5 - 0.45, y: p.y + p.h * 0.12, w: 0.9, h: 0.9, vx: p.facing * 8 + p.vx * 0.3, vy: -0.8, life: 3.5, age: 0 });
+  emit(g, 'belch');
+}
+
+function updateBelches(g, dt) {
+  for (const f of g.belches) {
+    f.age += dt;
+    f.life -= dt;
+    f.vy += 1 * dt; // barely any arc: it flies nearly straight
+    f.x += f.vx * dt;
+    f.y += f.vy * dt;
+    if (f.life <= 0 || f.y > g.level.h + 1 || solidAt(g, Math.floor(f.x + f.w / 2), Math.floor(f.y + f.h / 2))) {
+      f.dead = true;
+      continue;
+    }
+    for (const e of g.enemies) {
+      if (!e.alive || !overlap(f, e)) continue;
+      if (e.kind === 'packbilly') {
+        if (!e.full) feedPack(g, e, f);
+        break;
+      }
+      if (!f.hitSet?.has(e)) {
+        (f.hitSet ??= new Set()).add(e);
+        damage(g, e, 3, 'flame'); // the flame burns on through ordinary critters
+      }
+    }
+  }
+  g.belches = g.belches.filter((f) => !f.dead);
+}
+
+function feedPack(g, e, f) {
+  f.dead = true;
+  e.fed++;
+  floatText(g, e.x + 0.6, e.y - 0.6, e.fed >= FED_TO_FULL ? 'FULL!' : `CHOMP! ${e.fed}/${FED_TO_FULL}`);
+  emit(g, 'chomp');
+  if (e.fed >= FED_TO_FULL) {
+    e.full = true;
+    e.state = 'full';
+    e.stateT = 0;
+    g.bossDefeated = true;
+    g.items = g.items.filter((i) => i.kind !== 'tequila');
+    toast(g, 'Pack Billy is FULL!');
+    emit(g, 'burp');
+    if (g.level.bossScene) g.pendingScene = { id: g.level.bossScene, t: 2.6 };
+  }
+}
+
+// Flaming tequila keeps turning up in Pack Billy's arena
+function updateTequila(g, dt) {
+  const spots = g.level.tequilaSpots;
+  if (!spots) return;
+  const pack = g.enemies.find((e) => e.kind === 'packbilly' && e.awake && !e.full);
+  if (!pack) return;
+  g.tequilaT -= dt;
+  if (g.tequilaT > 0) return;
+  g.tequilaT = 3;
+  if (g.items.filter((i) => i.kind === 'tequila').length >= 3) return;
+  const spot = spots[g.tequilaIdx++ % spots.length];
+  g.items.push({ kind: 'tequila', x: spot.x, y: spot.y - 0.8, w: 0.6, h: 0.8, dir: 0, vx: 0, vy: 0, age: 0 });
 }
 
 function slash(g, box) {
@@ -693,6 +782,8 @@ function hitTile(g, tx, ty) {
   const away = p.x + p.w / 2 < tx + 0.5 ? 1 : -1; // pop out away from Billy so he can chase it
   if (what === 'shine') {
     g.items.push({ kind: 'shine', x: tx + 0.1, y: ty - 0.8, w: 0.8, h: 0.8, dir: away, vx: 3, vy: -7, age: 0 });
+  } else if (what === 'tequila') {
+    g.items.push({ kind: 'tequila', x: tx + 0.2, y: ty - 0.8, w: 0.6, h: 0.8, dir: away, vx: 3, vy: -8, age: 0 });
   } else if (what === 'life') {
     g.items.push({ kind: 'life', x: tx + 0.1, y: ty - 0.8, w: 0.8, h: 0.8, dir: away, vx: 3, vy: -8, age: 0 });
   } else if (what.startsWith('gear:')) {
@@ -823,7 +914,7 @@ function updateEnemies(g, dt) {
         if (e.shootT <= 0) {
           e.shootT = 2.6;
           if (near && Math.abs(dx) < 9) {
-            spawnShot(g, e.x + e.w / 2, e.y + e.h * 0.4, toward * 8, -1.5, 'star', 3);
+            spawnShot(g, e.x + e.w / 2, e.y + e.h * 0.4, toward * (k.shot === 'fire' ? 6 : 8), -1.5, k.shot ?? 'star', 3);
             emit(g, 'enemyshot');
           }
         }
@@ -855,6 +946,10 @@ function updateEnemies(g, dt) {
         break;
       case 'max':
         speed = updateMax(g, e, dt, k, dx, toward);
+        edgeTurn = false;
+        break;
+      case 'pack':
+        speed = updatePack(g, e, dt, k, toward);
         edgeTurn = false;
         break;
       case 'boss':
@@ -893,6 +988,26 @@ function updateEnemies(g, dt) {
     if (e.y > g.level.h + 2) e.alive = false;
   }
   g.enemies = g.enemies.filter((e) => e.alive || e.squish < 0.5);
+}
+
+// Pack Billy: a big, hungry, yellow hillbilly Pac-Man. Bounces after Billy, faster the more he eats.
+// Can't be hurt; feed him five flame balls and he gets full and lets Billy leave.
+function updatePack(g, e, dt, k, toward) {
+  if (e.full) {
+    e.warn = false;
+    return 0;
+  }
+  e.dir = toward;
+  e.hungry = g.belches.some((f) => Math.abs(f.x - e.x) < 6); // mouth wide open for a snack
+  e.hopT -= dt;
+  if (e.onGround && e.hopT <= 0) {
+    e.vy = -13;
+    e.hopT = Math.max(0.8, 1.7 - e.fed * 0.18);
+  }
+  const minX = e.ox - 26;
+  const maxX = e.ox + 20;
+  if ((e.x < minX && toward < 0) || (e.x + e.w > maxX && toward > 0)) return 0;
+  return k.speed + e.fed * 0.7;
 }
 
 // Max the old, fat tabby: lumbers after Billy, then winds up and belly-slams, sending
@@ -1061,6 +1176,15 @@ function collide(g) {
       addLife(g, it.x, it.y - 0.5);
       return false;
     }
+    if (it.kind === 'tequila') {
+      if (g.tequila >= TEQUILA_MAX) return true; // already full of flaming tequila
+      g.tequila++;
+      g.score += 50;
+      floatText(g, p.x - 0.4, p.y - 0.8, 'GLUG!');
+      toast(g, g.tequila === 1 ? 'Flaming tequila! Tap FIRE to belch a flame ball!' : `Flaming tequila x${g.tequila}`);
+      emit(g, 'drink');
+      return false;
+    }
     if (it.kind === 'gear') {
       equip(g, it.gear);
       g.score += 300;
@@ -1107,6 +1231,7 @@ function collide(g) {
   for (const e of g.enemies) {
     if (!e.alive || !overlap(p, e)) continue;
     const k = ENEMY_KINDS[e.kind];
+    if (e.full) continue; // a full Pack Billy is harmless
     if (p.rush > 0) {
       // Rush makes Billy invincible: critters (even bees) get plowed through
       damage(g, e, 99, 'rush');

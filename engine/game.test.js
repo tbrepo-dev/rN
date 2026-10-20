@@ -333,7 +333,7 @@ test('levels carry gear, ammo, score and lives forward', () => {
   assert.equal(g.mode, 'playing');
   nextLevel(g);
   assert.equal(g.levelNo, 3);
-  assert.equal(LEVEL_COUNT, 5);
+  assert.equal(LEVEL_COUNT, 6);
 });
 
 test('killing aliens drops ray gun ammo; the antenna helmet doubles it', () => {
@@ -655,14 +655,15 @@ test('the finale offers the red and blue pill with the right endings', () => {
   for (let i = 0; i < SCENES.happy.lines.length; i++) advanceScene(g);
   assert.equal(g.mode, 'ending');
   assert.equal(g.ending, 'happy');
-  // red: to be continued
+  // red: wakes up in Hell (level 6)
   const g2 = createGame({ enemies: false, level: 5 });
   startScene(g2, 'finale');
   for (let i = 0; i < lines; i++) advanceScene(g2);
   chooseScene(g2, 1);
+  assert.equal(g2.scene.id, 'tbc');
   for (let i = 0; i < SCENES.tbc.lines.length; i++) advanceScene(g2);
-  assert.equal(g2.mode, 'ending');
-  assert.equal(g2.ending, 'tbc');
+  assert.equal(g2.levelNo, 6);
+  assert.equal(g2.mode, 'intro');
 });
 
 // ---- Level 4: Honkey Kong ---------------------------------------------------
@@ -847,7 +848,7 @@ test('Max takes double damage while resting and his defeat starts the finale', (
 });
 
 // ---- Checkpoints must never soft-lock the game --------------------------------
-for (const n of [1, 2, 3, 4, 5]) {
+for (const n of [1, 2, 3, 4, 5, 6]) {
   test(`level ${n}: the checkpoint has solid floor under Billy, so respawning never drops him in a pit`, () => {
     const g = createGame({ level: n });
     const floor = g.level.checkpointFloor ?? g.level.groundY;
@@ -880,4 +881,194 @@ test('a checkpoint wrongly placed over a pit backs up to the nearest solid groun
   run(g, none, 1.5);
   assert.equal(g.mode, 'playing');
   assert.ok(g.player.onGround);
+});
+
+// ---- Level 6: Hell, Pack Billy, flaming tequila ------------------------------
+import { FED_TO_FULL } from './game.js';
+
+const pack = (g) => g.enemies.find((e) => e.kind === 'packbilly');
+const drink = (g, n = 1) => {
+  for (let i = 0; i < n; i++) g.items.push({ kind: 'tequila', x: g.player.x, y: g.player.y, w: 0.6, h: 0.8, dir: 0, vx: 0, vy: 0, age: 0 });
+  step(g, none);
+};
+
+test('the red pill takes Billy to Hell, and Pack Billy waits at the gates', () => {
+  const g = createGame({ level: 6 });
+  assert.equal(g.level.theme, 'hell');
+  assert.ok(pack(g));
+  assert.equal(pack(g).hp, 999);
+  assert.equal(FED_TO_FULL, 5);
+});
+
+test('drinking flaming tequila gives belches, up to three at once', () => {
+  const g = createGame({ level: 6, enemies: false });
+  drink(g);
+  assert.equal(g.tequila, 1);
+  drink(g, 3);
+  assert.equal(g.tequila, 3, 'capped at three');
+  assert.ok(g.events.includes('drink'));
+});
+
+test('FIRE belches a flame ball instead of the usual weapon, using up one tequila', () => {
+  const g = createGame({ level: 6, enemies: false });
+  g.gear.sword = true;
+  g.gear.raygun = true;
+  g.ammo = 5;
+  drink(g, 2);
+  run(g, none, 0.2);
+  g.player.facing = 1;
+  step(g, { ...none, throw: true });
+  assert.equal(g.belches.length, 1);
+  assert.equal(g.tequila, 1);
+  assert.equal(g.ammo, 5, 'the ray gun is not used while there is tequila');
+  // a belch moves away from Billy
+  const x0 = g.belches[0].x;
+  run(g, none, 0.2);
+  assert.ok(g.belches[0].x > x0 + 1);
+});
+
+test('flame balls burn through ordinary demons', () => {
+  const g = createGame({ level: 6 });
+  const imp = g.enemies.find((e) => e.kind === 'imp');
+  imp.awake = true;
+  imp.dir = 0;
+  g.belches.push({ x: imp.x - 0.5, y: imp.y, w: 0.9, h: 0.9, vx: 4, vy: 0, life: 3, age: 0 });
+  step(g, none);
+  assert.equal(imp.alive, false);
+  assert.equal(g.belches.length, 1, 'the flame burns on');
+});
+
+test('Pack Billy eats flame balls: five fills him up and the gates open', () => {
+  const g = createGame({ level: 6 });
+  const p = pack(g);
+  p.awake = true;
+  g.player.invuln = 999;
+  g.viewW = 30;
+  for (let i = 1; i <= FED_TO_FULL; i++) {
+    g.belches.push({ x: p.x + 0.5, y: p.y + 1, w: 0.9, h: 0.9, vx: 0, vy: 0, life: 3, age: 0 });
+    step(g, none);
+    assert.equal(p.fed, i);
+    assert.equal(g.belches.length, 0, 'eaten');
+    assert.equal(p.full, i === FED_TO_FULL);
+  }
+  assert.ok(g.bossDefeated);
+  assert.ok(g.events.includes('chomp') && g.events.includes('burp'));
+  run(g, none, 3);
+  assert.equal(g.mode, 'scene');
+  assert.equal(g.scene.id, 'hellExit');
+});
+
+test('Pack Billy cannot be hurt, and he hurts until he is full', () => {
+  const g = createGame({ level: 6 });
+  const p = pack(g);
+  p.awake = true;
+  g.gear.sword = true;
+  Object.assign(g.player, { x: p.x - 1.4, y: p.y + p.h - g.player.h, vy: 0, facing: 1, invuln: 999 });
+  step(g, { ...none, throw: true });
+  assert.equal(p.hp, 999, 'sword does nothing');
+  assert.equal(p.alive, true);
+  g.player.invuln = 0;
+  Object.assign(g.player, { x: p.x + 0.5, y: p.y + 0.5, vy: 0 });
+  step(g, none);
+  assert.equal(g.mode, 'dying', 'contact kills small Billy');
+  const g2 = createGame({ level: 6 });
+  const p2 = pack(g2);
+  p2.awake = true;
+  p2.full = true;
+  Object.assign(g2.player, { x: p2.x + 0.5, y: p2.y + 0.5, vy: 0 });
+  step(g2, none);
+  assert.equal(g2.mode, 'playing', 'a full Pack Billy is harmless');
+});
+
+test('Pack Billy chases Billy and gets faster as he eats', () => {
+  const g = createGame({ level: 6 });
+  const p = pack(g);
+  p.awake = true;
+  g.viewW = 30;
+  g.player.invuln = 999;
+  const speedAt = (fed) => {
+    p.fed = fed;
+    p.x = 140;
+    p.hopT = 99;
+    Object.assign(g.player, { x: 120, y: GROUND_Y - SMALL_H, vy: 0, vx: 0 });
+    run(g, none, 0.5);
+    return 140 - p.x;
+  };
+  const slow = speedAt(0);
+  const fast = speedAt(4);
+  assert.ok(slow > 0.8, `he chases: moved ${slow}`);
+  assert.ok(fast > slow * 1.2, `and speeds up: ${slow} -> ${fast}`);
+});
+
+test('flaming tequila keeps appearing in the arena while Pack Billy is hungry', () => {
+  const g = createGame({ level: 6 });
+  const p = pack(g);
+  p.awake = true;
+  g.viewW = 30;
+  g.player.invuln = 999;
+  const seen = new Set();
+  for (let i = 0; i < 60 * 14; i++) {
+    Object.assign(g.player, { x: 118, y: GROUND_Y - SMALL_H, vx: 0 });
+    step(g, none);
+    const bottles = g.items.filter((it) => it.kind === 'tequila');
+    assert.ok(bottles.length <= 3, 'at most three bottles at a time');
+    bottles.forEach((it) => seen.add(it));
+    if (i % 200 === 199) g.items = g.items.filter((it) => it.kind !== 'tequila'); // Billy drinks them
+  }
+  assert.ok(seen.size >= 4, `bottles spawned: ${seen.size}`);
+  // and with nobody collecting, the arena never holds more than three
+});
+
+test('after Pack Billy is full, the hell exit cutscene runs to the toilet and then to be continued', () => {
+  const g = createGame({ level: 6, enemies: false });
+  startScene(g, 'hellExit');
+  const lines = SCENES.hellExit.lines;
+  assert.ok(lines.some((l) => l.anim === 'run'), 'running out of the gates');
+  assert.ok(lines.some((l) => l.anim === 'sit'), 'sitting on the toilet');
+  assert.ok(lines.some((l) => /toilet/i.test(l.text)));
+  for (let i = 0; i < lines.length; i++) advanceScene(g);
+  assert.equal(g.mode, 'ending');
+  assert.equal(g.ending, 'tbc');
+});
+
+test('level 6 terrain is beatable up to the arena', () => {
+  const g = createGame({ enemies: false, level: 6 });
+  g.viewW = 20;
+  let t = 0;
+  const bot = () => {
+    const p = g.player;
+    const front = p.x + p.w;
+    const probeX = Math.floor(front + 0.45);
+    const wall = [0, 1, 2].some((i) => g.tiles[Math.floor(p.y + p.h - 0.1) - i]?.[Math.floor(front + 0.3)]);
+    const noFloor = !g.tiles[GROUND_Y]?.[probeX] && !g.tiles[GROUND_Y - 1]?.[probeX];
+    const want = p.onGround && (wall || noFloor);
+    const rescue = !p.onGround && p.airJumps > 0 && p.vy > 2 && p.y + p.h > 7 && !g.tiles[GROUND_Y]?.[Math.floor(p.x + p.w / 2)];
+    return { left: false, right: true, jump: want || (!p.onGround && p.vy < 0 && p.jumping) || (rescue && !g.prevJump) };
+  };
+  while (g.mode === 'playing' && t < 120 && g.player.x < 150) {
+    step(g, bot(), STEP);
+    t += STEP;
+  }
+  assert.ok(g.player.x >= 150 && g.mode === 'playing', `bot ended in ${g.mode} at x=${g.player.x.toFixed(1)}`);
+});
+
+test('a belch fired from across the arena actually reaches Pack Billy', () => {
+  for (const dist of [4, 7, 10]) {
+    const g = createGame({ level: 6 });
+    const p = pack(g);
+    p.awake = true;
+    p.hopT = 99; // keep him on the ground
+    p.dir = 1;
+    g.viewW = 40;
+    g.tequila = 1;
+    p.x = 147;
+    Object.assign(g.player, { x: p.x - dist, y: GROUND_Y - SMALL_H, vy: 0, vx: 0, facing: 1, invuln: 999 });
+    step(g, { ...none, throw: true });
+    for (let i = 0; i < 60 * 2; i++) {
+      p.x = 147; // hold him still
+      step(g, none);
+      if (p.fed > 0) break;
+    }
+    assert.equal(p.fed, 1, `a belch from ${dist} tiles away should be eaten`);
+  }
 });

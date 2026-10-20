@@ -4,9 +4,16 @@ import { SCENES } from '../engine/story';
 import { GEAR } from '../engine/game';
 import { Character, Jinxy, gearEmoji } from './Sprites';
 
-const NAMES = { billy: 'Billy', wizard: 'Merlinzo', jinxy: 'Jinxy', narrator: '', sign: '' };
-const NAME_COLORS = { billy: '#3d7be0', wizard: '#8a4fd1', jinxy: '#2aa6a6' };
+const NAMES = { billy: 'Billy', wizard: 'Merlinzo', jinxy: 'Jinxy', devil: 'The Devil', packbilly: 'Pack Billy', narrator: '', sign: '' };
+const NAME_COLORS = { billy: '#3d7be0', wizard: '#8a4fd1', jinxy: '#2aa6a6', devil: '#c8321e', packbilly: '#d8a800' };
 const shadow = { textShadowColor: 'rgba(0,0,0,0.65)', textShadowRadius: 3, textShadowOffset: { width: 1, height: 2 } };
+
+// Who is on stage at line `idx`: the last cast set at or before it
+function castAt(sc, idx) {
+  let cast = sc.cast || [];
+  for (let i = 0; i <= idx; i++) if (sc.lines[i].cast) cast = sc.lines[i].cast;
+  return cast;
+}
 
 // What backdrop is showing at line `idx`: the last bg set at or before it
 function bgAt(sc, idx) {
@@ -81,6 +88,51 @@ function Backdrop({ bg, w, h, t }) {
         </View>
       );
     }
+    case 'hell':
+      return (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#240606' }]} />
+          <View style={{ position: 'absolute', left: 0, right: 0, top: h * 0.35, bottom: 0, backgroundColor: '#8a1c0c', opacity: 0.55 }} />
+          {[0.18, 0.5, 0.82].map((f) => (
+            <View key={f} style={{ position: 'absolute', left: w * f - w * 0.06, top: h * 0.08, width: w * 0.12, height: h * 0.54, borderTopLeftRadius: w * 0.06, borderTopRightRadius: w * 0.06, backgroundColor: '#1a0707', borderWidth: 3, borderColor: '#5a1a12' }} />
+          ))}
+          {Array.from({ length: 14 }, (_, i) => (
+            <Text key={i} style={{ position: 'absolute', left: (w / 13) * i - 12, top: floorY - 38 + Math.sin(t * 6 + i) * 4, fontSize: 40, opacity: 0.9 }}>🔥</Text>
+          ))}
+          <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, bottom: 0, backgroundColor: '#3a0f0a' }} />
+          {Array.from({ length: 10 }, (_, i) => (
+            <Text key={i} style={{ position: 'absolute', left: `${(i * 97) % 100}%`, top: `${100 - ((i * 23 + t * 14) % 70)}%`, fontSize: 12, opacity: 0.7 }}>✦</Text>
+          ))}
+        </View>
+      );
+    case 'gates':
+      return (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#3a0c08' }]} />
+          <View style={{ position: 'absolute', left: w * 0.5, right: 0, top: 0, bottom: 0, backgroundColor: '#7ab8e6' }} />
+          <View style={{ position: 'absolute', left: w * 0.3, width: w * 0.2, top: h * 0.05, height: h * 0.62, backgroundColor: '#fff2b8', borderTopLeftRadius: w * 0.1, borderTopRightRadius: w * 0.1 }} />
+          <View style={{ position: 'absolute', left: w * 0.24, width: w * 0.08, top: h * 0.1, height: h * 0.57, backgroundColor: '#1f1618', borderWidth: 3, borderColor: '#6b2a22' }} />
+          <View style={{ position: 'absolute', left: w * 0.48, width: w * 0.08, top: h * 0.1, height: h * 0.57, backgroundColor: '#1f1618', borderWidth: 3, borderColor: '#6b2a22' }} />
+          <Text style={{ position: 'absolute', left: w * 0.36, top: -4, fontSize: 50 }}>💀</Text>
+          {[0.08, 0.16, 0.24].map((f, i) => (
+            <Text key={f} style={{ position: 'absolute', left: w * f - 20, top: floorY - 44 + Math.sin(t * 8 + i) * 4, fontSize: 44 }}>🔥</Text>
+          ))}
+          <View style={{ position: 'absolute', left: 0, width: w * 0.5, top: floorY, bottom: 0, backgroundColor: '#3a0f0a' }} />
+          <View style={{ position: 'absolute', left: w * 0.5, right: 0, top: floorY, bottom: 0, backgroundColor: '#6aaa64' }} />
+        </View>
+      );
+    case 'outside':
+      return (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#7ab8e6' }]} />
+          <View style={{ position: 'absolute', left: -w * 0.1, top: h * 0.1, width: w * 0.22, height: h * 0.6, backgroundColor: '#ff6a2a', opacity: 0.28, borderRadius: w }} />
+          <View style={{ position: 'absolute', left: -w * 0.1, top: h * 0.45, width: w * 0.8, height: h * 0.5, borderRadius: w, backgroundColor: '#6aaa64' }} />
+          <View style={{ position: 'absolute', left: w * 0.4, top: h * 0.52, width: w * 0.9, height: h * 0.5, borderRadius: w, backgroundColor: '#5b9a58' }} />
+          <Text style={{ position: 'absolute', left: w * 0.04, top: h * 0.3, fontSize: 36, opacity: 0.8 }}>🔥</Text>
+          <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, bottom: 0, backgroundColor: '#6aaa64' }} />
+          <View style={{ position: 'absolute', left: 0, right: 0, top: floorY + 10, bottom: 0, backgroundColor: '#8a5a33' }} />
+        </View>
+      );
     case 'home':
       return (
         <View style={StyleSheet.absoluteFill}>
@@ -123,24 +175,58 @@ export function SceneView({ g, width, height, onAdvance, onChoose }) {
   const lastLine = idx === sc.lines.length - 1;
   const choosing = !!sc.choice && lastLine;
   const speaker = line.who;
-  const [a, b] = sc.cast || [];
+  const [a, b] = castAt(sc, idx);
   const ko = line.fx === 'ko';
   const bobFor = (who) => (speaker === who ? Math.sin(t * 8) * 3 : 0);
   const gear = g.gear;
   const tied = bg === 'interrogation';
+  const lt = g.scene.t; // seconds since this line appeared
+  const anim = line.anim;
+  const floorY = height * 0.62;
+  const toiletX = width * 0.6;
+  // Billy's spot on stage: runs out of the gates, then to the toilet and sits
+  let billyLeft = width * 0.14;
+  let billyTop = floorY - S * 0.95 + bobFor('billy');
+  let onFire = false;
+  if (anim === 'run') {
+    const k = Math.min(1, lt / 2.6);
+    billyLeft = -S * 0.8 + k * (width * 0.5 + S * 0.8);
+    billyTop = floorY - S * 0.95 - Math.abs(Math.sin(lt * 14)) * 10;
+    onFire = true;
+  } else if (anim === 'toilet') {
+    const k = Math.min(1, lt / 2.0);
+    billyLeft = -S * 0.8 + k * (toiletX + S * 0.1 + S * 0.8);
+    billyTop = floorY - S * 0.95 - (k < 1 ? Math.abs(Math.sin(lt * 14)) * 10 : 0);
+    onFire = true;
+  } else if (anim === 'sit') {
+    billyLeft = toiletX + S * 0.08;
+    billyTop = floorY - S * 0.95 + S * 0.1;
+    onFire = lt < 1.1 && line.fx !== 'steam'; // the flames go out with a PSSSSH
+  }
+  const showToilet = anim === 'toilet' || anim === 'sit';
+  const stageS = S;
   return (
     <Pressable style={StyleSheet.absoluteFill} onPress={() => !choosing && onAdvance()}>
       <Backdrop bg={bg} w={width} h={height} t={t} />
 
+      {showToilet && <Text style={{ position: 'absolute', left: toiletX - S * 0.15, top: floorY - S * 0.9, fontSize: S * 1.05, lineHeight: S * 1.15 }}>🚽</Text>}
+
       {!dark && a && (
-        <View style={{ position: 'absolute', left: width * 0.14, top: height * 0.62 - S * 0.95 + bobFor(a), opacity: speaker === a || speaker === 'narrator' || speaker === 'sign' ? 1 : 0.8, transform: [{ rotate: ko ? '80deg' : tied ? '-6deg' : '0deg' }] }}>
-          <Character who={a} size={S} gear={gear} />
+        <View style={{ position: 'absolute', left: billyLeft, top: a === 'billy' ? billyTop : floorY - S * 0.95 + bobFor(a), opacity: speaker === a || speaker === 'narrator' || speaker === 'sign' || anim ? 1 : 0.8, transform: [{ rotate: ko ? '80deg' : tied ? '-6deg' : '0deg' }] }}>
+          <Character who={a} size={S} gear={gear} fire={a === 'billy' && onFire} t={t} />
           {tied && <Text style={{ position: 'absolute', left: -6, top: S * 0.4, fontSize: S * 0.3 }}>🪢</Text>}
         </View>
       )}
-      {!dark && b && (
-        <View style={{ position: 'absolute', right: width * 0.14, top: height * 0.62 - S * (b === 'jinxy' ? 0.72 : 0.95) + bobFor(b), opacity: speaker === b || speaker === 'narrator' || speaker === 'sign' ? 1 : 0.8 }}>
-          <Character who={b} size={S} />
+      {!dark && b && !anim && (
+        <View style={{ position: 'absolute', right: width * 0.14, top: floorY - S * (b === 'jinxy' ? 0.72 : b === 'packbilly' ? 1.15 : 0.95) + bobFor(b), opacity: speaker === b || speaker === 'narrator' || speaker === 'sign' ? 1 : 0.8 }}>
+          <Character who={b} size={S} t={t} />
+        </View>
+      )}
+      {line.fx === 'steam' && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {Array.from({ length: 7 }, (_, i) => (
+            <Text key={i} style={{ position: 'absolute', left: toiletX + S * 0.05 + ((i * 29) % 70), top: floorY - S * 0.7 - ((t * 60 + i * 37) % (S * 1.2)), fontSize: 26 + (i % 3) * 8, opacity: 0.85 }}>💨</Text>
+          ))}
         </View>
       )}
 

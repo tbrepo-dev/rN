@@ -16,7 +16,7 @@ const c = {
 
 // ---------------------------------------------------------------------------
 // Billy, with whatever gear he has picked up
-export function Billy({ p, ts, gear = {} }) {
+export function Billy({ p, ts, gear = {}, fire = false, lit = 0, t = 0 }) {
   const w = p.w * ts;
   const h = p.h * ts;
   const stride = Math.floor(p.run * 2.2) % 2 === 0 ? 1 : -1;
@@ -58,6 +58,22 @@ export function Billy({ p, ts, gear = {} }) {
           }}
         />
       )}
+      {/* flames licking at his backside (cutscene) */}
+      {fire && (
+        <>
+          <Text style={{ position: 'absolute', left: -w * 1.1, top: h * 0.35, fontSize: h * 0.95, transform: [{ rotate: `${Math.sin(t * 20) * 14}deg` }] }}>🔥</Text>
+          <Text style={{ position: 'absolute', left: -w * 0.6, top: h * 0.55, fontSize: h * 0.6, transform: [{ rotate: `${Math.cos(t * 17) * 16}deg` }] }}>🔥</Text>
+        </>
+      )}
+      {/* flaming tequila inside: a flame on his hat, glowing */}
+      {lit > 0 && (
+        <>
+          <View style={{ position: 'absolute', left: -w * 0.25, top: -h * 0.1, width: w * 1.5, height: h * 1.2, borderRadius: w, backgroundColor: 'rgba(255,120,30,0.22)', borderWidth: 2, borderColor: 'rgba(255,150,40,0.7)' }} />
+          <Text style={{ position: 'absolute', left: w * 0.1, top: -h * 0.62, fontSize: h * (0.5 + 0.12 * lit), transform: [{ rotate: `${Math.sin(t * 18) * 10}deg` }] }}>🔥</Text>
+        </>
+      )}
+      {/* a flame ball coming up from the belly */}
+      {p.belch > 0 && <Text style={{ position: 'absolute', left: w * 0.75, top: h * 0.12, fontSize: h * (0.5 + (0.4 - p.belch) * 2.4), opacity: Math.min(1, p.belch * 4) }}>🔥</Text>}
       {/* sword sheathed across the back */}
       {gear.sword && !slashing && (
         <View style={{ position: 'absolute', left: -w * 0.18, top: h * 0.3, width: Math.max(3, w * 0.1), height: h * 0.75, backgroundColor: '#d5dde8', borderRadius: 2, transform: [{ rotate: '-28deg' }] }}>
@@ -193,15 +209,17 @@ const EMOJI = {
   alien: '👽', hopper: '👾', tentacle: '🐙', ufo: '🛸', drone: '🛰️',
   goblin: '👺', skeleton: '💀', troll: '🧌', witch: '🧙‍♀️', bat: '🦇', boss: '🧙‍♀️',
   ninja: '🐈‍⬛', samurai: '🐱', crow: '🐦', max: '🐈',
+  imp: '😈', demon: '👹', ember: '🔥',
 };
-const SCALE = { bee: 0.6, drone: 0.6, bat: 0.65, turkey: 1.0, troll: 1.2, ufo: 1.1, boss: 1.8, witch: 1.0, tentacle: 0.95, ninja: 0.85, samurai: 0.95, crow: 0.65, max: 2.6 };
-const FLYERS = { bee: 1, drone: 1, bat: 1, ufo: 1, crow: 1 };
+const SCALE = { bee: 0.6, drone: 0.6, bat: 0.65, turkey: 1.0, troll: 1.2, ufo: 1.1, boss: 1.8, witch: 1.0, tentacle: 0.95, ninja: 0.85, samurai: 0.95, crow: 0.65, max: 2.6, imp: 0.85, demon: 1.25, ember: 0.6 };
+const FLYERS = { bee: 1, drone: 1, bat: 1, ufo: 1, crow: 1, ember: 1 };
 
 export function Critter({ e, ts }) {
   if (e.kind === 'honkey') return <Honkey e={e} ts={ts} />;
   if (e.kind === 'barrel') return <RollingBarrel e={e} ts={ts} />;
+  if (e.kind === 'packbilly') return <PackBillyCritter e={e} ts={ts} />;
   const size = ts * (SCALE[e.kind] ?? 0.85);
-  const charging = (e.kind === 'turkey' || e.kind === 'troll' || e.kind === 'samurai' || e.kind === 'max') && e.state === 'wind';
+  const charging = (e.kind === 'turkey' || e.kind === 'troll' || e.kind === 'samurai' || e.kind === 'max' || e.kind === 'demon') && e.state === 'wind';
   const shake = charging ? Math.sin(e.t * 60) * ts * 0.06 : 0;
   const warn = e.warn || charging;
   const hurt = e.hit > 0;
@@ -305,6 +323,10 @@ export function Shot({ s, ts }) {
       </View>
     );
   }
+  if (s.kind === 'fire') {
+    const d = s.w * ts * 1.6;
+    return <Text style={{ position: 'absolute', left: s.x * ts - d * 0.2, top: s.y * ts - d * 0.3, fontSize: d, lineHeight: d * 1.1, transform: [{ rotate: `${s.life * 700}deg` }] }}>🔥</Text>;
+  }
   if (s.kind === 'wave') {
     return <View style={{ position: 'absolute', left: s.x * ts, top: s.y * ts, width: s.w * ts, height: s.h * ts, borderTopLeftRadius: s.w * ts, borderTopRightRadius: s.w * ts, backgroundColor: 'rgba(255,176,60,0.85)', borderWidth: 3, borderColor: '#d9701c' }} />;
   }
@@ -360,6 +382,11 @@ export function Jug({ x, y, ts, t = 0, glow = false, kind = 'jug' }) {
           shadowOffset: { width: 0, height: 0 },
         }}
       />
+    );
+  }
+  if (kind === 'soul') {
+    return (
+      <Text style={{ position: 'absolute', left: x * ts + ts * 0.15, top: y * ts + ts * 0.1 + bob, fontSize: ts * 0.55, opacity: 0.75 + 0.25 * Math.sin(t * 5 + x) }}>👻</Text>
     );
   }
   if (kind === 'fish') {
@@ -478,6 +505,12 @@ const THEMES = {
     rock: { bg: '#9a9fa6', edge: '#555a61', ring: '#f2d66b' },
     box: { bg: '#b3262b', plank: '#701419', iron: '#e0b030', usedBg: '#4d3f3a', usedPlank: '#382d29', usedIron: '#6f6350' },
   },
+  hell: {
+    ground: '#2a1212', top: '#e0501c', topLine: '#7a1a0a', vein: '#4a1a14',
+    hay: { bg: '#2b2530', line: '#ff5a2a' },
+    rock: { bg: '#dcd4c0', edge: '#8a826e', ring: '#b5ad98' },
+    box: { bg: '#3a1a18', plank: '#1c0a09', iron: '#ff5a2a', usedBg: '#2a2422', usedPlank: '#171312', usedIron: '#4a403c' },
+  },
   medieval: {
     ground: '#6b5b4b', top: '#6a9f3f', topLine: '#44702a', vein: '#574a3c',
     hay: { bg: '#9aa0a6', line: '#6c7278' },
@@ -507,6 +540,15 @@ export function Tile({ type, x, y, ts, theme = 'holler' }) {
             {[[3, 3], [ts - 8, 3], [3, ts - 8], [ts - 8, ts - 8]].map(([l, t], i) => (
               <View key={i} style={{ position: 'absolute', left: l, top: t, width: 4, height: 4, borderRadius: 2, backgroundColor: '#aab9d4' }} />
             ))}
+          </View>
+        );
+      }
+      if (theme === 'hell') {
+        // black obsidian slab with glowing lava cracks
+        return (
+          <View style={[base, { backgroundColor: T.hay.bg, borderWidth: 2, borderColor: '#14101a', borderRadius: 3, overflow: 'hidden' }]}>
+            <View style={{ position: 'absolute', left: -ts * 0.1, top: ts * 0.3, width: ts * 0.8, height: 3, backgroundColor: T.hay.line, transform: [{ rotate: '25deg' }] }} />
+            <View style={{ position: 'absolute', left: ts * 0.4, top: ts * 0.62, width: ts * 0.7, height: 3, backgroundColor: T.hay.line, transform: [{ rotate: '-30deg' }] }} />
           </View>
         );
       }
@@ -557,6 +599,24 @@ export function Tile({ type, x, y, ts, theme = 'holler' }) {
           </View>
         );
       }
+      if (theme === 'hell') {
+        // a coffin-black box with glowing eyes
+        return (
+          <View style={[base, { backgroundColor: wood, borderWidth: 2, borderColor: plank, borderRadius: 5, alignItems: 'center', justifyContent: 'center' }]}>
+            {used ? (
+              <View style={{ width: ts * 0.4, height: ts * 0.2, borderRadius: ts * 0.1, backgroundColor: '#0f0b0a' }} />
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', gap: ts * 0.12 }}>
+                  <View style={{ width: ts * 0.16, height: ts * 0.12, borderRadius: ts * 0.06, backgroundColor: iron }} />
+                  <View style={{ width: ts * 0.16, height: ts * 0.12, borderRadius: ts * 0.06, backgroundColor: iron }} />
+                </View>
+                <View style={{ width: ts * 0.34, height: 3, backgroundColor: iron, marginTop: ts * 0.1 }} />
+              </>
+            )}
+          </View>
+        );
+      }
       if (theme === 'japan') {
         // lacquered offering box with a gold band and a lucky coin mark
         return (
@@ -602,7 +662,9 @@ export function Tile({ type, x, y, ts, theme = 'holler' }) {
     case 5: // stump / boulder / stone pillar
       return (
         <View style={[base, { backgroundColor: T.rock.bg, borderWidth: 2, borderColor: T.rock.edge, borderRadius: theme === 'medieval' || theme === 'japan' ? 2 : theme === 'alien' ? ts * 0.35 : 4 }]}>
-          {theme === 'japan' ? (
+          {theme === 'hell' ? (
+            <View style={{ position: 'absolute', left: ts * 0.2, top: ts * 0.25, width: ts * 0.6, height: ts * 0.12, borderRadius: ts * 0.06, backgroundColor: T.rock.ring }} />
+          ) : theme === 'japan' ? (
             <View style={{ position: 'absolute', left: ts * 0.3, top: ts * 0.3, width: ts * 0.4, height: ts * 0.4, backgroundColor: T.rock.ring, borderWidth: 2, borderColor: T.rock.edge }} />
           ) : theme === 'medieval' ? (
             <View style={{ position: 'absolute', left: 3, right: 3, top: ts * 0.45, height: 2, backgroundColor: T.rock.ring }} />
@@ -815,6 +877,108 @@ export function Fridge({ x, y, ts, t }) {
 }
 
 // ---------------------------------------------------------------------------
+// Pack Billy: a big, hungry, yellow hillbilly Pac-Man (faces left). Straw hat, ginger beard,
+// a missing tooth, and a mouth that never stops chomping.
+export function PackBilly({ D, open = 0.5, full = false, t = 0 }) {
+  const R = D / 2;
+  const body = full ? '#a6d64a' : '#ffd41f';
+  const edge = full ? '#6d9a1f' : '#c99a00';
+  const angle = full ? 3 : 6 + open * 40;
+  const h2 = R * Math.tan((angle * Math.PI) / 180);
+  return (
+    <View style={{ width: D, height: D }}>
+      <View style={{ position: 'absolute', left: 0, top: 0, width: D, height: D, borderRadius: R, backgroundColor: body, borderWidth: 3, borderColor: edge, overflow: 'hidden' }}>
+        {/* mouth wedge: apex at the middle, opening toward the front (left) */}
+        <View style={{ position: 'absolute', left: -3, top: R - h2 - 3, width: 0, height: 0, borderLeftWidth: R + 3, borderTopWidth: h2, borderBottomWidth: h2, borderTopColor: 'transparent', borderBottomColor: 'transparent', borderLeftColor: '#2b0f0f' }} />
+        {!full && open > 0.25 && <View style={{ position: 'absolute', left: R * 0.22, top: R - h2 * 0.9 - 3, width: R * 0.13, height: R * 0.2, borderRadius: 3, backgroundColor: '#fff' }} />}
+        {/* overall strap */}
+        <View style={{ position: 'absolute', left: R * 1.1, top: -R * 0.2, width: R * 0.22, height: D * 1.3, backgroundColor: '#2f5fb8', transform: [{ rotate: '28deg' }] }} />
+        <View style={{ position: 'absolute', left: R * 1.12, top: R * 1.25, width: R * 0.16, height: R * 0.16, borderRadius: R * 0.08, backgroundColor: '#f0c53a' }} />
+      </View>
+      {/* eye */}
+      {full ? (
+        <Text style={{ position: 'absolute', left: R * 0.95, top: R * 0.15, fontSize: R * 0.5, fontWeight: '900', color: '#2b0f0f' }}>×</Text>
+      ) : (
+        <View style={{ position: 'absolute', left: R * 0.98, top: R * 0.22, width: R * 0.3, height: R * 0.34, borderRadius: R * 0.17, backgroundColor: '#fff', borderWidth: 2, borderColor: '#2b0f0f', alignItems: 'flex-start', justifyContent: 'center' }}>
+          <View style={{ width: R * 0.14, height: R * 0.18, borderRadius: R * 0.08, backgroundColor: '#2b0f0f', marginLeft: 2 }} />
+        </View>
+      )}
+      {/* ginger beard */}
+      <View style={{ position: 'absolute', left: R * 0.35, top: D * 0.74, width: D * 0.62, height: D * 0.3, borderBottomLeftRadius: D * 0.3, borderBottomRightRadius: D * 0.3, borderTopLeftRadius: D * 0.1, borderTopRightRadius: D * 0.1, backgroundColor: '#c4641c' }} />
+      <View style={{ position: 'absolute', left: R * 0.55, top: D * 0.9, width: D * 0.08, height: D * 0.14, borderRadius: 4, backgroundColor: '#a64f12' }} />
+      <View style={{ position: 'absolute', left: R * 1.0, top: D * 0.92, width: D * 0.08, height: D * 0.14, borderRadius: 4, backgroundColor: '#a64f12' }} />
+      {/* straw hat */}
+      <View style={{ position: 'absolute', left: D * 0.28, top: -D * 0.2, width: D * 0.44, height: D * 0.3, borderTopLeftRadius: D * 0.22, borderTopRightRadius: D * 0.22, backgroundColor: '#e8c35a' }} />
+      <View style={{ position: 'absolute', left: D * 0.28, top: D * 0.0, width: D * 0.44, height: D * 0.05, backgroundColor: '#8b3a1a' }} />
+      <View style={{ position: 'absolute', left: D * 0.06, top: D * 0.04, width: D * 0.88, height: D * 0.12, borderRadius: D * 0.06, backgroundColor: '#e8c35a', borderBottomWidth: 3, borderColor: '#b58a1f' }} />
+      {full && <Text style={{ position: 'absolute', left: -D * 0.3, top: R * 0.55, fontSize: D * 0.4, opacity: 0.6 + 0.4 * Math.sin(t * 8) }}>💨</Text>}
+      {full && <Text style={{ position: 'absolute', left: D * 0.25, top: -D * 0.6, fontSize: D * 0.3 }}>💫</Text>}
+    </View>
+  );
+}
+
+export function PackBillyCritter({ e, ts }) {
+  const W = e.w * ts;
+  const H = e.h * ts;
+  const D = W * (1 + 0.06 * e.fed);
+  const open = e.full ? 0 : e.hungry ? 1 : 0.5 + 0.5 * Math.sin(e.t * 14);
+  return (
+    <View style={{ position: 'absolute', left: e.x * ts, top: e.y * ts, width: W, height: H, transform: [{ scaleX: e.dir > 0 ? -1 : 1 }] }}>
+      <View style={{ position: 'absolute', left: (W - D) / 2, top: H - D }}>
+        <PackBilly D={D} open={open} full={e.full} t={e.t} />
+      </View>
+      {!e.full && <Text style={{ position: 'absolute', left: 0, right: 0, top: -ts * 0.55, textAlign: 'center', fontSize: Math.max(8, ts * 0.28), fontWeight: '900', color: '#fff', textShadowColor: 'rgba(0,0,0,0.7)', textShadowRadius: 3, transform: [{ scaleX: e.dir > 0 ? -1 : 1 }] }}>PACK BILLY</Text>}
+    </View>
+  );
+}
+
+// A bottle of flaming tequila: glug it, then belch
+export function Tequila({ it, ts, t }) {
+  const w = it.w * ts;
+  const h = it.h * ts;
+  const bob = Math.sin(t * 5 + it.x) * ts * 0.05;
+  return (
+    <View style={{ position: 'absolute', left: it.x * ts, top: it.y * ts + bob, width: w, height: h, alignItems: 'center' }}>
+      <View style={{ position: 'absolute', left: -w * 0.5, top: -h * 0.4, width: w * 2, height: h * 1.5, borderRadius: w, backgroundColor: 'rgba(255,140,30,0.28)', opacity: 0.6 + 0.4 * Math.sin(t * 9 + it.x) }} />
+      <Text style={{ position: 'absolute', top: -h * 0.5, fontSize: h * 0.6, transform: [{ rotate: `${Math.sin(t * 16 + it.x) * 10}deg` }] }}>🔥</Text>
+      <View style={{ width: w * 0.3, height: h * 0.22, backgroundColor: '#3f9a4f', borderTopLeftRadius: 3, borderTopRightRadius: 3 }} />
+      <View style={{ width: w * 0.95, height: h * 0.62, backgroundColor: '#3f9a4f', borderRadius: w * 0.3, borderWidth: 2, borderColor: '#1d5a2a', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: '70%', height: '38%', backgroundColor: '#f6e7b4', borderRadius: 2 }} />
+      </View>
+    </View>
+  );
+}
+
+export function FlameBall({ f, ts }) {
+  const d = f.w * ts * 1.5;
+  return (
+    <View style={{ position: 'absolute', left: f.x * ts - d * 0.15, top: f.y * ts - d * 0.25, width: d, height: d, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', width: d * 1.1, height: d * 1.1, borderRadius: d, backgroundColor: 'rgba(255,150,40,0.35)' }} />
+      <Text style={{ fontSize: d, lineHeight: d * 1.15, transform: [{ rotate: `${Math.sin(f.age * 22) * 14}deg` }, { scale: 1 + 0.12 * Math.sin(f.age * 30) }] }}>🔥</Text>
+    </View>
+  );
+}
+
+export function HellGate({ x, y, ts, open, t }) {
+  const W = ts * 4;
+  const H = ts * 4.4;
+  return (
+    <View style={{ position: 'absolute', left: x * ts, top: y * ts, width: W, height: H }}>
+      {open && <View style={{ position: 'absolute', left: W * 0.1, top: H * 0.12, width: W * 0.8, height: H * 0.88, backgroundColor: '#fff2b8', borderTopLeftRadius: W * 0.4, borderTopRightRadius: W * 0.4, opacity: 0.8 + 0.2 * Math.sin(t * 6) }} />}
+      {/* stone arch */}
+      <View style={{ position: 'absolute', left: 0, top: H * 0.06, width: W, height: H * 0.94, borderTopLeftRadius: W * 0.5, borderTopRightRadius: W * 0.5, backgroundColor: '#3a2220', borderWidth: 4, borderColor: '#14090a' }} />
+      {/* iron doors, swung wide when open */}
+      <View style={{ position: 'absolute', left: W * 0.12, top: H * 0.22, width: open ? W * 0.06 : W * 0.38, height: H * 0.78, backgroundColor: '#1f1618', borderWidth: 3, borderColor: '#6b2a22' }} />
+      <View style={{ position: 'absolute', right: W * 0.12, top: H * 0.22, width: open ? W * 0.06 : W * 0.38, height: H * 0.78, backgroundColor: '#1f1618', borderWidth: 3, borderColor: '#6b2a22' }} />
+      {!open && [0.25, 0.5, 0.75].map((f) => <View key={f} style={{ position: 'absolute', left: W * 0.14, right: W * 0.14, top: H * (0.22 + 0.78 * f), height: 3, backgroundColor: '#6b2a22' }} />)}
+      <Text style={{ position: 'absolute', left: 0, right: 0, top: -H * 0.04, textAlign: 'center', fontSize: ts * 1.3 }}>💀</Text>
+      <Text style={{ position: 'absolute', left: -ts * 0.5, top: H * 0.5, fontSize: ts * 1.3, opacity: 0.8 + 0.2 * Math.sin(t * 9) }}>🔥</Text>
+      <Text style={{ position: 'absolute', right: -ts * 0.5, top: H * 0.5, fontSize: ts * 1.3, opacity: 0.8 + 0.2 * Math.sin(t * 9 + 2) }}>🔥</Text>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Cast for cutscenes
 const FAKE_P = { x: 0, y: 0, w: 0.7, h: 0.95, facing: 1, onGround: true, run: 0, invuln: 0, rush: 0, slash: 0, shielding: false };
 
@@ -941,14 +1105,16 @@ export function MaxCat({ W, H, state }) {
   );
 }
 
-export function Character({ who, size, gear }) {
+export function Character({ who, size, gear, fire, t = 0 }) {
   if (who === 'billy') {
     return (
       <View style={{ width: FAKE_P.w * size, height: FAKE_P.h * size }}>
-        <Billy p={FAKE_P} ts={size} gear={gear || {}} />
+        <Billy p={FAKE_P} ts={size} gear={gear || {}} fire={fire} t={t} />
       </View>
     );
   }
+  if (who === 'devil') return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.1 }}>😈</Text>;
+  if (who === 'packbilly') return <PackBilly D={size * 1.2} open={0.5 + 0.5 * Math.sin(t * 10)} t={t} />;
   if (who === 'wizard') return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.1 }}>🧙‍♂️</Text>;
   if (who === 'jinxy') return <Jinxy size={size * 0.8} />;
   if (who === 'max') return <MaxCat W={size * 1.6} H={size * 1.4} state="walk" />;

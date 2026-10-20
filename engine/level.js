@@ -506,8 +506,100 @@ function buildPagoda() {
   });
 }
 
-export const LEVEL_COUNT = 5;
-const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda];
+// ---------------------------------------------------------------------------
+// Level 6: Hell. Billy wakes up here after the red pill. A gauntlet of imps and demons over lava,
+// then Pack Billy, a big hungry hillbilly Pac-Man, guards the gates. Drink flaming tequila,
+// belch five flame balls for him to eat, and he lets you leave.
+function buildHell() {
+  const B = builder(170);
+  const { ground, stump, hay, crate, jugs, enemy } = B;
+
+  [[0, 28], [32, 56], [59, 84], [88, 112], [115, 170]].forEach(([a, b]) => ground(a, b));
+
+  // Wake-up ledge: the first barrel holds flaming tequila, so Billy can practise belching
+  crate(10, 5, 'tequila');
+  hay(11, 5);
+  crate(12, 5, 'jug');
+  hay(13, 5);
+  crate(14, 5, 'jug');
+  jugs(7, 7, 3);
+  enemy('imp', 20);
+  enemy('imp', 25);
+  stump(26, 1);
+  jugs(18, 7, 3);
+  jugs(28, 6, 4); // over the first lava pit
+
+  // Brimstone road
+  enemy('demon', 38);
+  crate(42, 5, 'tequila');
+  hay(43, 5);
+  crate(44, 5, 'swarm:ember');
+  enemy('imp', 48);
+  enemy('imp', 52);
+  jugs(35, 7, 3);
+  jugs(46, 7, 4);
+  enemy('ember', 57, 5.5);
+  jugs(56, 6, 3);
+
+  // Bone yard
+  enemy('demon', 66);
+  enemy('imp', 71);
+  enemy('imp', 76);
+  stump(79, 1);
+  stump(80, 2);
+  stump(81, 3);
+  stump(82, 2);
+  stump(83, 1);
+  jugs(80, 5, 3);
+  jugs(63, 7, 3);
+  jugs(72, 7, 3);
+  hay(85, 7, 2); // floating slab over the lava
+  jugs(85, 6, 2);
+
+  // Obsidian ledges: a high route that needs the double jump
+  crate(92, 5, 'tequila');
+  hay(93, 5);
+  crate(94, 5, 'shine');
+  stump(97, 3);
+  hay(99, 3, 3);
+  hay(104, 3, 3);
+  hay(109, 3, 3);
+  jugs(99, 2, 3);
+  jugs(104, 2, 3);
+  jugs(109, 2, 3);
+  B.life(102.5, 1.5); // 1UP above the gap
+  enemy('demon', 101);
+  enemy('imp', 106);
+  enemy('ember', 105, 1.8);
+  jugs(100, 7, 4);
+  jugs(106, 7, 3);
+
+  // The gates of Hell: Pack Billy's arena, with ledges to dodge on
+  hay(128, 6, 4);
+  hay(140, 6, 4);
+  hay(152, 6, 4);
+  enemy('packbilly', 148);
+
+  const arena = [];
+  [[129.5, 6], [141.5, 6], [153.5, 6], [135, 9], [147, 9], [159, 9], [124, 9], [163, 9]].forEach(([x, y]) => arena.push({ x, y }));
+
+  return B.finish({
+    id: 6,
+    name: 'Hell',
+    theme: 'hell',
+    collectible: 'soul',
+    goalKind: 'hellgate',
+    boss: true,
+    bossScene: 'hellExit',
+    tequilaSpots: arena,
+    checkpointX: 120,
+    goalX: 167,
+    goalJugs: 0,
+  });
+}
+
+export const LEVEL_COUNT = 6;
+const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell];
 
 export function buildLevel(n = 1) {
   return BUILDERS[n - 1]();

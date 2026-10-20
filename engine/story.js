@@ -81,7 +81,7 @@ export const SCENES = {
     then: { ending: 'happy' },
   },
 
-  // Red pill
+  // Red pill: Billy wakes up in Hell
   tbc: {
     bg: 'black',
     cast: ['billy', 'jinxy'],
@@ -89,6 +89,35 @@ export const SCENES = {
       { who: 'narrator', text: 'Billy swallows the red pill.' },
       { who: 'narrator', text: 'The lamp flickers. The room begins to spin. Jinxy smiles.' },
       { who: 'jinxy', text: 'Welcome to the real world, cowboy.' },
+      { who: 'narrator', text: '...' },
+      { who: 'narrator', text: 'Billy wakes up. It is HOT. It smells like sulfur and nachos.', bg: 'hell', cast: ['billy', 'devil'] },
+      { who: 'billy', text: 'Where in tarnation am I?' },
+      { who: 'devil', text: 'Welcome to Hell! Please take a number.' },
+      { who: 'billy', text: "I ain't got time for numbers." },
+      { who: 'devil', text: 'Spicy. I like you. Here is the deal: the gates are guarded by Pack Billy. Big yellow fella. Always hungry.' },
+      { who: 'devil', text: 'Drink the flaming tequila, BELCH fireballs, and feed him five. When he is full, he lets you leave.' },
+      { who: 'billy', text: "Drink fire and burp it. I've been training for this my whole life." },
+      { who: 'devil', text: 'Off you go!', fx: 'zap' },
+    ],
+    then: { level: 6 },
+  },
+
+  // After Pack Billy is full
+  hellExit: {
+    bg: 'hell',
+    cast: ['billy', 'packbilly'],
+    lines: [
+      { who: 'narrator', text: 'Pack Billy swells up like a yellow balloon. His eyes go glassy. His cheeks puff out...' },
+      { who: 'packbilly', text: '*BUUUUURP*' },
+      { who: 'devil', text: 'Well, I will be. Nobody has ever filled him up.', cast: ['billy', 'devil'] },
+      { who: 'billy', text: 'So... can I go now?', cast: ['billy', 'packbilly'] },
+      { who: 'packbilly', text: '...Go. Please. Before I explode.' },
+      { who: 'narrator', text: 'The gates of Hell swing open. Billy bolts for the exit. His backside is on FIRE.', bg: 'gates', cast: ['billy'], anim: 'run' },
+      { who: 'billy', text: 'YEEEOWWW! HOT HOT HOT HOT!', anim: 'run' },
+      { who: 'narrator', text: 'Up ahead, in the middle of nowhere, sits a lonely toilet.', bg: 'outside', anim: 'toilet' },
+      { who: 'billy', text: "Don't mind if I do!", anim: 'sit' },
+      { who: 'narrator', text: 'PSSSSSSSSSSSHHHHhhhh...', anim: 'sit', fx: 'steam' },
+      { who: 'billy', text: 'Ahhhhhhhhh.', anim: 'sit', fx: 'steam' },
     ],
     then: { ending: 'tbc' },
   },
