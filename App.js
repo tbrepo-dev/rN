@@ -148,23 +148,37 @@ export default function App() {
     };
   }, []);
 
-  // Button layout (shared by hit-testing and drawing)
+  // Button layout (shared by hit-testing and drawing). The action buttons hug the right
+  // edge in an arc around JUMP so they stay well clear of the walk buttons on any screen.
   const jumpC = { x: width - width * 0.05 - 52, y: height - 28 - 52, r: 52 };
-  const throwC = { x: jumpC.x - 104, y: height - 28 - 38, r: 38 };
-  const shineC = { x: jumpC.x - 100, y: throwC.y - 38 - 14 - 32, r: 32 };
-  const hit = (t, c, k) => Math.hypot(t.pageX - c.x, t.pageY - c.y) < c.r * k;
+  const throwC = { x: jumpC.x - 78, y: jumpC.y - 58, r: 38 };
+  const shineC = { x: jumpC.x + 2, y: jumpC.y - 52 - 20 - 32, r: 32 };
+  const leftC = { x: width * 0.04 + 36, y: height - 28 - 36, r: 36 };
+  const rightC = { x: width * 0.04 + 84 + 36, y: height - 28 - 36, r: 36 };
+  const actions = [
+    ['left', leftC, 1.4],
+    ['right', rightC, 1.4],
+    ['jump', jumpC, 1.25],
+    ['throw', throwC, 1.15],
+    ['rush', shineC, 1.2],
+  ];
 
-  // Multi-touch: left cluster = ◀ ▶, right cluster = JUMP / THROW / SHINE
+  // Multi-touch: left cluster = ◀ ▶, right cluster = JUMP / THROW / SHINE.
+  // A touch goes to whichever button it is closest to (relative to its size).
   const onTouches = (e) => {
     const next = { left: false, right: false, jump: false, throw: false, rush: false };
     for (const t of e.nativeEvent.touches) {
-      const x = t.pageX;
-      if (hit(t, jumpC, 1.5)) next.jump = true;
-      else if (hit(t, throwC, 1.4)) next.throw = true;
-      else if (hit(t, shineC, 1.4)) next.rush = true;
-      else if (x < width * 0.2) next.left = true;
-      else if (x < width * 0.4) next.right = true;
-      else if (x > width * 0.72) next.jump = true;
+      let best = null;
+      let bestScore = Infinity;
+      for (const [name, c, k] of actions) {
+        const score = Math.hypot(t.pageX - c.x, t.pageY - c.y) / (c.r * k);
+        if (score < 1 && score < bestScore) {
+          best = name;
+          bestScore = score;
+        }
+      }
+      if (best) next[best] = true;
+      else if (t.pageX > width * 0.75 && t.pageY > height * 0.45) next.jump = true;
     }
     for (const k of ['jump', 'throw', 'rush']) if (next[k]) latchRef.current[k] = true;
     inputRef.current = next;
@@ -227,8 +241,8 @@ export default function App() {
       {/* On-screen controls */}
       {screen === 'play' && (
         <View style={styles.controls} pointerEvents="none">
-          <View style={[styles.btn, { left: width * 0.04, opacity: inp.left ? 0.8 : 0.4 }]}><Text style={styles.btnText}>◀</Text></View>
-          <View style={[styles.btn, { left: width * 0.04 + 84, opacity: inp.right ? 0.8 : 0.4 }]}><Text style={styles.btnText}>▶</Text></View>
+          <View style={[styles.btn, { left: leftC.x - leftC.r, opacity: inp.left ? 0.8 : 0.4 }]}><Text style={styles.btnText}>◀</Text></View>
+          <View style={[styles.btn, { left: rightC.x - rightC.r, opacity: inp.right ? 0.8 : 0.4 }]}><Text style={styles.btnText}>▶</Text></View>
           <View style={[styles.btn, styles.jump, { left: jumpC.x - jumpC.r, top: jumpC.y - jumpC.r, bottom: undefined, opacity: inp.jump ? 0.8 : 0.4 }]}><Text style={styles.btnText}>JUMP</Text></View>
           <View style={[styles.btn, { left: throwC.x - throwC.r, top: throwC.y - throwC.r, bottom: undefined, width: throwC.r * 2, height: throwC.r * 2, borderRadius: throwC.r, opacity: inp.throw ? 0.8 : 0.45 }]}>
             <Text style={{ fontSize: 30 }}>🌽</Text>
