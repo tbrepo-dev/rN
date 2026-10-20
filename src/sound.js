@@ -8,15 +8,30 @@ let timer = null;
 let nextTime = 0;
 let noteIdx = 0;
 
-// G - C - D - G, a bluegrass-y banjo roll (arpeggio order per chord)
+// Each level has its own tune: bluegrass banjo, spacey synth, medieval lute
 const CHORDS = {
   G: [196.0, 246.94, 293.66, 392.0],
   C: [261.63, 329.63, 392.0, 523.25],
   D: [293.66, 369.99, 440.0, 587.33],
+  Am: [220.0, 261.63, 329.63, 440.0],
+  F: [174.61, 261.63, 349.23, 440.0],
+  Dm: [146.83, 220.0, 293.66, 349.23],
+  Bb: [233.08, 293.66, 349.23, 466.16],
+  E: [164.81, 246.94, 329.63, 415.3],
 };
-const PROGRESSION = ['G', 'G', 'C', 'G', 'D', 'D', 'G', 'G'];
-const ROLL = [0, 3, 2, 1, 3, 2, 1, 2];
-const EIGHTH = 60 / 150 / 2;
+const MUSIC = {
+  holler: { prog: ['G', 'G', 'C', 'G', 'D', 'D', 'G', 'G'], roll: [0, 3, 2, 1, 3, 2, 1, 2], bpm: 150, type: 'sawtooth', oct: 1, vol: 1 },
+  alien: { prog: ['Am', 'Am', 'F', 'C', 'Am', 'F', 'G', 'E'], roll: [0, 2, 3, 2, 1, 3, 2, 3], bpm: 118, type: 'square', oct: 2, vol: 0.55 },
+  medieval: { prog: ['Dm', 'Dm', 'Bb', 'C', 'Dm', 'Bb', 'Am', 'Dm'], roll: [0, 2, 1, 3, 2, 1, 3, 2], bpm: 104, type: 'triangle', oct: 1, vol: 1.7 },
+};
+let tune = MUSIC.holler;
+let eighth = 60 / tune.bpm / 2;
+
+export function setMusicTheme(name) {
+  tune = MUSIC[name] || MUSIC.holler;
+  eighth = 60 / tune.bpm / 2;
+  noteIdx = 0;
+}
 
 function pluck(freq, t, dur = 0.22, vol = 0.2, type = 'sawtooth') {
   const o = ctx.createOscillator();
@@ -50,11 +65,11 @@ function slide(from, to, t, dur, vol = 0.2, type = 'square') {
 function schedule() {
   if (!ctx) return;
   while (nextTime < ctx.currentTime + 0.3) {
-    const bar = Math.floor(noteIdx / 8) % PROGRESSION.length;
-    const chord = CHORDS[PROGRESSION[bar]];
-    const n = ROLL[noteIdx % 8];
-    pluck(chord[n] * (n === 0 ? 0.5 : 1), nextTime, 0.25, n === 0 ? 0.13 : 0.08);
-    nextTime += EIGHTH;
+    const bar = Math.floor(noteIdx / 8) % tune.prog.length;
+    const chord = CHORDS[tune.prog[bar]];
+    const n = tune.roll[noteIdx % 8];
+    pluck(chord[n] * (n === 0 ? 0.5 : 1) * tune.oct, nextTime, 0.25, (n === 0 ? 0.13 : 0.08) * tune.vol, tune.type);
+    nextTime += eighth;
     noteIdx++;
   }
 }
@@ -105,6 +120,15 @@ const SFX = {
   hurt: (t) => slide(400, 120, t, 0.3, 0.18, 'sawtooth'),
   die: (t) => [392, 330, 262, 196].forEach((f, i) => pluck(f, t + i * 0.16, 0.3, 0.16, 'triangle')),
   win: (t) => [392, 392, 523, 659, 784, 659, 784].forEach((f, i) => pluck(f, t + i * 0.11, 0.3, 0.14)),
+  ray: (t) => slide(1400, 300, t, 0.14, 0.1, 'sawtooth'),
+  slash: (t) => slide(900, 200, t, 0.1, 0.12, 'sawtooth'),
+  block: (t) => {
+    slide(700, 500, t, 0.05, 0.16, 'square');
+    pluck(1100, t + 0.02, 0.1, 0.08, 'triangle');
+  },
+  gear: (t) => [523, 659, 784, 1047, 1319].forEach((f, i) => pluck(f, t + i * 0.06, 0.25, 0.12, 'triangle')),
+  ammo: (t) => pluck(1568, t, 0.08, 0.08, 'triangle'),
+  enemyshot: (t) => slide(600, 250, t, 0.12, 0.08, 'square'),
   gameover: (t) => [330, 262, 196].forEach((f, i) => pluck(f, t + i * 0.25, 0.4, 0.14, 'triangle')),
 };
 

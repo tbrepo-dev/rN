@@ -15,12 +15,19 @@ npm test              # engine tests (physics, stomping, crates, level is beatab
 ## How to play
 
 - **◀ ▶** (bottom-left) run. **JUMP** (bottom-right): hold for a higher jump, tap again in mid-air to double jump.
-- **🌽** throws a corn cob. Hit critters from a distance. Bees can't be stomped, and turkeys take two cobs.
-- Collect jugs of shine to fill the **SHINE** meter. When it's full, tap **RUSH** for 6 seconds of invincibility (critters are plowed through, pits still count), extra speed, a higher jump and triple corn cobs.
-- Bump the barrels from below: a jug pops out to the side (chase it down!), a glowing **shine** jug makes Billy big (one free hit) — or it's a hive full of bees.
-- Meet the critters: chickens, raccoons and skunks patrol; hounds chase you; turkeys wind up and charge; bees swarm.
-- Load the truck: collect enough jugs (shown on the HUD and the truck's sign) before you drive off. Find the treetop trail above the barn for a big stash.
-- Keyboard (web): arrows/WASD move, space/Z jump, X throw, C rush.
+- **Fire** (🌽 / 🔫): up close with a sword it slashes, otherwise it fires the ray gun while you have ammo, otherwise it throws a corn cob.
+- **SHINE / RUSH**: collect shine to fill the meter, then tap RUSH for 6 seconds of invincibility (critters are plowed through, pits still count), extra speed, a higher jump and triple corn cobs.
+- **🛡️** (once you find a shield): hold to block from the front. Slows you down, stops shots and shoves enemies back.
+- Bump barrels from below: a collectible pops out to the side (chase it down!), a glowing **shine** jug makes Billy big (one free hit), gear for your loadout, or a swarm.
+- Keyboard (web): arrows/WASD move, space/Z jump, X fire, C rush, V shield.
+
+## The three levels
+
+1. **Billy's Holler**: chickens, raccoons, skunks, chasing hounds, charging turkeys, bees. Load the truck with half the jugs.
+2. **Crash-Landed**: a UFO has crashed on the ranch. Same mechanics, but aliens (grunts, hoppers, tentacle gunners, UFOs, drones) drop ⚡ ammo for the **ray gun** (found in the first barrel). Gear: ray gun, antenna helmet (double ammo), alien vest (+1 armor). Collect crystals to power the Time Booth.
+3. **Dark Ages**: the Time Booth drops Billy in the Middle Ages: goblins, skeletons, trolls, witches who lob orbs, bats and the **Witch Queen** guarding the castle gate. Gear: sword, shield, knight-alien helm and armor. By the end Billy wears the full knight-alien kit with ray gun, sword and shield.
+
+Gear you miss is waiting in a loot chest at the end of each level, so Billy always finishes level 3 fully equipped. Gear, ammo, lives and score carry from level to level.
 
 ## Layout
 

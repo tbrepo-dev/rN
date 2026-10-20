@@ -10,35 +10,68 @@ export const LEVEL_W = 150;
 export const LEVEL_H = 11;
 export const GROUND_Y = 9; // top row of the ground
 
-// Builds "Billy' Holler", the one and only level (for now).
-export function buildLevel() {
-  const w = LEVEL_W;
+
+// Shared level-building helpers
+function builder(w) {
   const h = LEVEL_H;
   const tiles = Array.from({ length: h }, () => new Array(w).fill(EMPTY));
-  const crates = {}; // "x,y" -> 'jug' | 'shine'
+  const crates = {}; // "x,y" -> 'jug' | 'shine' | 'bees' | 'swarm:<kind>' | 'gear:<name>'
   const coins = [];
   const spawns = [];
   const set = (x, y, t) => {
     tiles[y][x] = t;
   };
+  const B = {
+    w,
+    h,
+    tiles,
+    crates,
+    coins,
+    spawns,
+    ground(x0, x1) {
+      for (let x = x0; x < x1; x++) for (let y = GROUND_Y; y < h; y++) set(x, y, GROUND);
+    },
+    stump(x, height) {
+      for (let i = 1; i <= height; i++) set(x, GROUND_Y - i, STUMP);
+    },
+    hay(x, y, len = 1) {
+      for (let i = 0; i < len; i++) set(x + i, y, HAY);
+    },
+    crate(x, y, what = 'jug') {
+      set(x, y, CRATE);
+      crates[`${x},${y}`] = what;
+    },
+    jugs(x, y, n, dx = 1) {
+      for (let i = 0; i < n; i++) coins.push({ x: x + i * dx, y, taken: false });
+    },
+    enemy(kind, x, y) {
+      spawns.push({ kind, x, y });
+    },
+    // Fills in totals; the exit wants about half of all collectibles
+    finish(extra) {
+      const total = coins.length + Object.values(crates).filter((c) => c === 'jug').length;
+      return {
+        w,
+        h,
+        tiles,
+        crates,
+        coins,
+        spawns,
+        startX: 2,
+        totalJugs: total,
+        goalJugs: Math.round(total * 0.5),
+        gearPool: [],
+        ...extra,
+      };
+    },
+  };
+  return B;
+}
 
-  const ground = (x0, x1) => {
-    for (let x = x0; x < x1; x++) for (let y = GROUND_Y; y < h; y++) set(x, y, GROUND);
-  };
-  const stump = (x, height) => {
-    for (let i = 1; i <= height; i++) set(x, GROUND_Y - i, STUMP);
-  };
-  const hay = (x, y, len = 1) => {
-    for (let i = 0; i < len; i++) set(x + i, y, HAY);
-  };
-  const crate = (x, y, what = 'jug') => {
-    set(x, y, CRATE);
-    crates[`${x},${y}`] = what;
-  };
-  const jugs = (x, y, n, dx = 1) => {
-    for (let i = 0; i < n; i++) coins.push({ x: x + i * dx, y, taken: false });
-  };
-  const enemy = (kind, x, y) => spawns.push({ kind, x, y });
+// Builds "Billy' Holler", the one and only level (for now).
+function buildHoller() {
+  const B = builder(LEVEL_W);
+  const { w, h, tiles, crates, coins, spawns, ground, stump, hay, crate, jugs, enemy } = B;
 
   // Ground with pits
   [[0, 38], [42, 66], [69, 100], [104, 128], [131, w]].forEach(([a, b]) => ground(a, b));
@@ -133,5 +166,210 @@ export function buildLevel() {
   // The truck needs about half of all the moonshine in the level
   const total = coins.length + Object.values(crates).filter((c) => c === 'jug').length;
   const goalJugs = Math.round(total * 0.5);
-  return { w, h, tiles, crates, coins, spawns, checkpointX, goalX, goalJugs, totalJugs: total, startX: 2 };
+  return B.finish({
+    id: 1,
+    name: "Billy's Holler",
+    theme: 'holler',
+    collectible: 'jug',
+    goalKind: 'truck',
+    checkpointX,
+    goalX,
+    goalJugs,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Level 2: Crash-Landed. A UFO has gone down on the ranch.
+// Same mechanics as level 1; aliens drop ray gun ammo.
+function buildAlienRanch() {
+  const B = builder(150);
+  const { ground, stump, hay, crate, jugs, enemy } = B;
+
+  [[0, 30], [34, 60], [63, 92], [96, 120], [123, 150]].forEach(([a, b]) => ground(a, b));
+
+  // Crash site: the first barrel holds an alien ray gun
+  crate(10, 5, 'gear:raygun');
+  hay(11, 5);
+  crate(12, 5, 'jug');
+  hay(13, 5);
+  crate(14, 5, 'jug');
+  jugs(7, 7, 3);
+  enemy('alien', 22);
+  jugs(19, 7, 3);
+  stump(25, 1);
+  enemy('alien', 27);
+  jugs(30, 6, 4); // arc over pit #1
+
+  // Ranch yard
+  enemy('hopper', 40);
+  stump(42, 2);
+  crate(44, 5, 'gear:antenna');
+  hay(45, 5);
+  crate(46, 5, 'jug');
+  enemy('tentacle', 50);
+  enemy('alien', 54);
+  jugs(37, 7, 4);
+  jugs(52, 7, 3);
+  jugs(57, 7, 2);
+  enemy('drone', 61, 5.5); // over pit #2
+  jugs(60, 6, 3);
+
+  // Alien farmland
+  enemy('hopper', 67);
+  enemy('ufo', 71, 3.4);
+  crate(72, 5, 'swarm:drone');
+  hay(73, 5);
+  crate(74, 5, 'jug');
+  jugs(69, 7, 3);
+  stump(78, 1);
+  stump(79, 2);
+  stump(80, 3);
+  stump(81, 2);
+  stump(82, 1);
+  jugs(79, 5, 3);
+  enemy('tentacle', 86);
+  enemy('alien', 89);
+  jugs(84, 7, 3);
+  hay(93, 7, 2); // floating plank over pit #3
+  jugs(93, 6, 2);
+
+  // Mothership ledge: a high route that needs the double jump
+  crate(98, 5, 'gear:vest');
+  hay(99, 5);
+  crate(100, 5, 'shine');
+  stump(103, 3);
+  hay(105, 3, 3);
+  hay(110, 3, 3);
+  hay(115, 3, 3);
+  jugs(105, 2, 3);
+  jugs(110, 2, 3);
+  jugs(115, 2, 3);
+  enemy('alien', 107);
+  enemy('hopper', 112);
+  enemy('ufo', 112, 1.8);
+  enemy('tentacle', 117);
+  jugs(108, 5, 4);
+  jugs(121, 6, 3);
+
+  // Home stretch to the Time Booth
+  enemy('alien', 129);
+  crate(128, 5, 'swarm:drone');
+  enemy('hopper', 134);
+  enemy('tentacle', 138);
+  stump(141, 1);
+  jugs(131, 7, 4);
+
+  return B.finish({
+    id: 2,
+    name: 'Crash-Landed',
+    theme: 'alien',
+    collectible: 'crystal',
+    goalKind: 'booth',
+    checkpointX: 64,
+    goalX: 146,
+    gearPool: ['raygun', 'antenna', 'vest'],
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Level 3: The Time Booth drops Billy in the Middle Ages. Goblins, witches, a troll or
+// two, and the Witch Queen guarding the castle gate.
+function buildMedieval() {
+  const B = builder(165);
+  const { ground, stump, hay, crate, jugs, enemy } = B;
+
+  [[0, 28], [32, 58], [61, 88], [92, 118], [121, 165]].forEach(([a, b]) => ground(a, b));
+
+  // Arrival: a chest with a sword
+  crate(10, 5, 'gear:sword');
+  hay(11, 5);
+  crate(12, 5, 'jug');
+  hay(13, 5);
+  crate(14, 5, 'jug');
+  jugs(7, 7, 3);
+  enemy('goblin', 20);
+  enemy('skeleton', 24);
+  jugs(19, 7, 4);
+  jugs(28, 6, 4);
+
+  // Village road
+  enemy('goblin', 36);
+  crate(40, 5, 'gear:shield');
+  hay(41, 5);
+  crate(42, 5, 'swarm:bat');
+  enemy('witch', 47);
+  enemy('skeleton', 52);
+  jugs(34, 7, 3);
+  jugs(44, 7, 4);
+  jugs(54, 7, 3);
+  enemy('bat', 59, 5.5);
+  jugs(58, 6, 3);
+
+  // Troll bridge country
+  enemy('troll', 68);
+  enemy('goblin', 74);
+  enemy('witch', 80);
+  jugs(64, 7, 3);
+  jugs(71, 7, 3);
+  stump(82, 1);
+  stump(83, 2);
+  stump(84, 3);
+  stump(85, 2);
+  stump(86, 1);
+  jugs(83, 5, 3);
+  hay(89, 7, 2); // floating plank over the moat
+  jugs(89, 6, 2);
+
+  // Castle outskirts, with a rampart walk above
+  crate(95, 5, 'gear:knightHelm');
+  hay(96, 5);
+  crate(97, 5, 'shine');
+  stump(101, 3);
+  hay(103, 3, 3);
+  hay(108, 3, 3);
+  hay(113, 3, 3);
+  jugs(103, 2, 3);
+  jugs(108, 2, 3);
+  jugs(113, 2, 3);
+  enemy('goblin', 105);
+  enemy('troll', 111);
+  enemy('bat', 108, 1.8);
+  crate(106, 5, 'gear:plate');
+  hay(107, 5);
+  jugs(104, 7, 3);
+  jugs(110, 7, 3);
+  jugs(118, 6, 3);
+
+  // Castle yard
+  enemy('witch', 126);
+  enemy('goblin', 130);
+  crate(132, 5, 'swarm:bat');
+  stump(134, 2);
+  enemy('skeleton', 137);
+  enemy('troll', 141);
+  jugs(124, 7, 4);
+  jugs(135, 5, 3);
+  jugs(138, 7, 3);
+
+  // The Witch Queen holds the gate
+  enemy('boss', 153);
+
+  return B.finish({
+    id: 3,
+    name: 'Dark Ages',
+    theme: 'medieval',
+    collectible: 'coin',
+    goalKind: 'castle',
+    boss: true,
+    checkpointX: 62,
+    goalX: 161,
+    gearPool: ['sword', 'shield', 'knightHelm', 'plate'],
+  });
+}
+
+export const LEVEL_COUNT = 3;
+const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval];
+
+export function buildLevel(n = 1) {
+  return BUILDERS[n - 1]();
 }
