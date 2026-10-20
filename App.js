@@ -274,7 +274,7 @@ export default function App() {
         <Pressable style={styles.overlay} onPress={start}>
           <Text style={styles.title}>BILLY BUBS</Text>
           <Text style={styles.sub}>Collect {level.goalJugs} jugs of shine and get Billy to his truck, y'all!</Text>
-          <Text style={styles.hint}>🌽 throw corn cobs  •  jump twice for a double jump{'\n'}fill the SHINE meter, then hit RUSH for speed and triple cobs</Text>
+          <Text style={styles.hint}>🌽 throw corn cobs  •  jump twice for a double jump{'\n'}fill the SHINE meter, then hit RUSH to be invincible, fast, and fire triple cobs</Text>
           <Text style={styles.tap}>Tap to start</Text>
         </Pressable>
       )}

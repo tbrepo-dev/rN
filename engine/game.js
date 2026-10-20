@@ -613,6 +613,14 @@ function collide(g) {
   for (const e of g.enemies) {
     if (!e.alive || !overlap(p, e)) continue;
     const k = ENEMY_KINDS[e.kind];
+    if (p.rush > 0) {
+      // Rush makes Billy invincible: critters (even bees) get plowed through
+      kill(g, e, false);
+      g.score += 150;
+      floatText(g, e.x, e.y - 0.5, '+150');
+      emit(g, 'stomp');
+      continue;
+    }
     const stomping = k.stomp && p.vy > 0 && p.y + p.h - e.y < 0.65;
     if (stomping) {
       kill(g, e, true);
@@ -636,6 +644,7 @@ function kill(g, e, squished) {
 
 export function hurt(g) {
   const p = g.player;
+  if (p.rush > 0) return; // invincible while rushing
   if (p.big) {
     p.big = false;
     p.y += BIG_H - SMALL_H;

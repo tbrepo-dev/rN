@@ -277,3 +277,28 @@ test('the beehive barrel releases a swarm', () => {
   step(g, none);
   assert.equal(g.enemies.filter((e) => e.kind === 'bee').length, 3);
 });
+
+test('Rush makes Billy invincible and plows through critters', () => {
+  const g = createGame();
+  run(g, none, 0.3);
+  g.shine = 8;
+  step(g, { ...none, rush: true });
+  const bee = g.enemies.find((e) => e.kind === 'bee');
+  const hound = g.enemies[0];
+  bee.awake = hound.awake = true;
+  Object.assign(g.player, { x: bee.x, y: bee.y - 0.2 });
+  step(g, none);
+  assert.equal(bee.alive, false);
+  assert.equal(g.mode, 'playing');
+  Object.assign(g.player, { x: hound.x - 0.5, y: hound.y, vy: 0 });
+  step(g, none);
+  assert.equal(hound.alive, false);
+  assert.equal(g.mode, 'playing');
+  // once Rush runs out, enemies hurt again
+  g.player.rush = 0;
+  const e2 = g.enemies.find((e) => e.alive && e.kind !== 'bee');
+  Object.assign(g.player, { x: e2.x - 0.4, y: e2.y, vy: 0, invuln: 0 });
+  e2.awake = true;
+  step(g, none);
+  assert.equal(g.mode, 'dying');
+});
