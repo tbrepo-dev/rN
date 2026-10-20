@@ -198,8 +198,8 @@ export default function App() {
 
       {screen === 'title' && (
         <Pressable style={styles.overlay} onPress={start}>
-          <Text style={styles.title}>HILLBILLY BROS</Text>
-          <Text style={styles.sub}>Get Cletus to his pickup truck, y'all!</Text>
+          <Text style={styles.title}>BILLY BUBS</Text>
+          <Text style={styles.sub}>Get Billy to his pickup truck, y'all!</Text>
           <Text style={styles.tap}>Tap to start</Text>
         </Pressable>
       )}
@@ -213,7 +213,7 @@ export default function App() {
       {screen === 'play' && g.mode === 'won' && (
         <Pressable style={styles.overlay} onPress={start}>
           <Text style={styles.title}>YEEHAW!</Text>
-          <Text style={styles.sub}>Cletus made it to the truck{'\n'}🏺 ×{g.jugs}   Score {g.score}</Text>
+          <Text style={styles.sub}>Billy made it to the truck{'\n'}🏺 ×{g.jugs}   Score {g.score}</Text>
           <Text style={styles.tap}>Tap to play again</Text>
         </Pressable>
       )}
