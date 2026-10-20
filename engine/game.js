@@ -282,12 +282,12 @@ function hitTile(g, tx, ty) {
   g.tiles[ty][tx] = USED;
   g.version++;
   const what = g.level.crates[`${tx},${ty}`];
+  const p = g.player;
+  const away = p.x + p.w / 2 < tx + 0.5 ? 1 : -1; // pop out away from Billy so he can chase it
   if (what === 'shine') {
-    g.items.push({ kind: 'shine', x: tx + 0.1, y: ty - 0.8, w: 0.8, h: 0.8, dir: 1, vx: 3, vy: -7 });
+    g.items.push({ kind: 'shine', x: tx + 0.1, y: ty - 0.8, w: 0.8, h: 0.8, dir: away, vx: 3, vy: -7, age: 0 });
   } else {
-    g.jugs++;
-    g.score += 100;
-    g.effects.push({ kind: 'jug', x: tx, y: ty - 1, t: 0 });
+    g.items.push({ kind: 'jug', x: tx + 0.1, y: ty - 0.8, w: 0.8, h: 0.8, dir: away, vx: 4.5 * away, vy: -11, age: 0, bounce: 0 });
   }
   // Anything standing on the crate gets knocked off
   for (const e of g.enemies) {
@@ -324,14 +324,29 @@ function updateEnemies(g, dt) {
   g.enemies = g.enemies.filter((e) => e.alive || e.squish < 0.5);
 }
 
+const JUG_LIFETIME = 10;
+
 function updateItems(g, dt) {
   for (const it of g.items) {
-    it.vx = it.dir * 3;
+    it.age += dt;
     it.vy = Math.min(it.vy + C.gravity * dt, C.maxFall);
+    if (it.kind === 'shine') it.vx = it.dir * 3;
+    const fallV = it.vy;
+    const vxBefore = it.vx;
     const { hitX } = moveBody(g, it, dt);
-    if (hitX) it.dir = -it.dir;
+    if (it.kind === 'shine') {
+      if (hitX) it.dir = -it.dir;
+    } else {
+      if (hitX) it.vx = -vxBefore * 0.5;
+      if (it.onGround && fallV > 1) {
+        it.bounce++;
+        if (it.bounce < 3) it.vy = -fallV * 0.45;
+        it.vx *= 0.75;
+      }
+      if (it.onGround && it.bounce >= 3) it.vx = approach(it.vx, 0, 8 * dt);
+    }
   }
-  g.items = g.items.filter((it) => it.y < g.level.h + 2);
+  g.items = g.items.filter((it) => it.y < g.level.h + 2 && (it.kind !== 'jug' || it.age < JUG_LIFETIME));
 }
 
 function overlap(a, b) {
@@ -343,6 +358,12 @@ function collide(g) {
 
   g.items = g.items.filter((it) => {
     if (!overlap(p, it)) return true;
+    if (it.kind === 'jug') {
+      g.jugs++;
+      g.score += 100;
+      floatText(g, it.x, it.y - 0.3, '+100');
+      return false;
+    }
     if (!p.big) {
       p.big = true;
       p.y -= BIG_H - SMALL_H;

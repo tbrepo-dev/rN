@@ -108,16 +108,39 @@ test('side contact costs a life; big player just shrinks', () => {
   assert.equal(g.mode, 'playing');
 });
 
-test('bumping a crate from below pays out', () => {
+test('barrel pops a jug out to the side that Billy can chase and collect', () => {
   const g = createGame({ enemies: false });
   const before = g.jugs;
   g.player.x = 14.15;
-  g.player.y = 6.1; // just under crate at (14,5)
+  g.player.y = 6.1; // just under barrel at (14,5)
   g.player.vy = -15;
   step(g, none);
   assert.equal(g.tiles[5][14], USED);
-  assert.equal(g.jugs, before + 1);
+  assert.equal(g.jugs, before, 'not collected automatically');
+  assert.equal(g.items.length, 1);
+  const jug = g.items[0];
+  assert.equal(jug.kind, 'jug');
+  assert.ok(jug.vx !== 0);
   assert.equal(g.tiles[5][16], CRATE);
+  // the jug lands and slows to a stop on the ground
+  run(g, none, 3);
+  assert.equal(g.items[0].onGround, true);
+  assert.ok(Math.abs(g.items[0].vx) < 0.01);
+  // Billy walks over and picks it up
+  Object.assign(g.player, { x: g.items[0].x, y: g.items[0].y });
+  step(g, none);
+  assert.equal(g.jugs, before + 1);
+  assert.equal(g.items.length, 0);
+});
+
+test('an uncollected jug disappears after ~10 seconds', () => {
+  const g = createGame({ enemies: false });
+  Object.assign(g.player, { x: 14.15, y: 6.1, vy: -15 });
+  step(g, none);
+  g.player.x = 1;
+  g.player.y = GROUND_Y - SMALL_H;
+  run(g, none, 10.5);
+  assert.equal(g.items.length, 0);
 });
 
 test('shine crate grows Cletus', () => {

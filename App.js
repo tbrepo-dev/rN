@@ -164,9 +164,11 @@ export default function App() {
         <Scenery level={level} ts={ts} />
         <Terrain tiles={g.tiles} level={level} ts={ts} version={g.version} />
         {g.coins.map((c, i) => !c.taken && c.x > g.camX - 1 && c.x < g.camX + viewW + 1 && <Jug key={i} x={c.x} y={c.y} ts={ts} t={g.time} />)}
-        {g.items.map((it, i) => (
-          <Jug key={`i${i}`} x={it.x - 0.1} y={it.y - 0.1} ts={ts} t={g.time} glow />
-        ))}
+        {g.items.map((it, i) =>
+          it.kind === 'jug' && it.age > 8 && Math.floor(it.age * 8) % 2 === 0 ? null : (
+            <Jug key={`i${i}`} x={it.x - 0.1} y={it.y - 0.1} ts={ts} t={it.kind === 'jug' ? 0 : g.time} glow={it.kind === 'shine'} />
+          )
+        )}
         {g.enemies.map((e, i) => e.x > g.camX - 2 && e.x < g.camX + viewW + 2 && <Critter key={i} e={e} ts={ts} />)}
         <Cletus p={p} ts={ts} />
         {g.effects.map((f, i) =>
