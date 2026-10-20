@@ -1,5 +1,5 @@
 // Cutscenes. A scene is a list of lines shown one tap at a time on a themed backdrop.
-//   who: 'narrator' | 'sign' | a cast member ('billy', 'wizard', 'natasha')
+//   who: 'narrator' | 'sign' | a cast member ('billy', 'wizard', 'jinxy')
 //   fx:  optional flourish shown behind the dialogue ('zap', 'ko')
 //   bg:  optional backdrop change from this line on
 // When the lines run out, `then` decides what happens next: start a level, play another
@@ -44,22 +44,22 @@ export const SCENES = {
   // After Max falls
   finale: {
     bg: 'dojo',
-    cast: ['billy', 'natasha'],
+    cast: ['billy', 'jinxy'],
     lines: [
       { who: 'narrator', text: 'Max the tabby gives one last wheeze, rolls over, and starts to snore. The dojo falls silent.' },
       { who: 'billy', text: 'Whew. That cat was the size of a hay wagon.' },
       { who: 'narrator', text: 'A tiny shadow steps out from behind the paper doors.' },
-      { who: 'natasha', text: 'Impressive, cowboy. Nobody beats Max. Not in twelve years.' },
+      { who: 'jinxy', text: 'Impressive, cowboy. Nobody beats Max. Not in twelve years.' },
       { who: 'billy', text: 'And who might you be? You are about the size of a boot.' },
-      { who: 'natasha', text: 'I am Natasha, of the Russian Blue family. We run this city. Max was our muscle.' },
+      { who: 'jinxy', text: 'I am Jinxy, of the Russian Blue family. We run this city. Max was our muscle.' },
       { who: 'billy', text: 'So you are the boss.' },
-      { who: 'natasha', text: 'Da. Goodnight, cowboy.', fx: 'ko' },
+      { who: 'jinxy', text: 'Da. Goodnight, cowboy.', fx: 'ko' },
       { who: 'narrator', text: '...', bg: 'black' },
       { who: 'narrator', text: 'Billy wakes up tied to a chair. A single lamp swings overhead.', bg: 'interrogation' },
-      { who: 'natasha', text: 'Wakey wakey. Now. Tell me about the wizard.' },
+      { who: 'jinxy', text: 'Wakey wakey. Now. Tell me about the wizard.' },
       { who: 'billy', text: "I ain't tellin' you nothin'." },
-      { who: 'natasha', text: 'Everyone talks eventually. But I am a reasonable cat. So I offer you a choice.' },
-      { who: 'natasha', text: 'Two pills. Red... and blue. Choose wisely, cowboy.' },
+      { who: 'jinxy', text: 'Everyone talks eventually. But I am a reasonable cat. So I offer you a choice.' },
+      { who: 'jinxy', text: 'Two pills. Red... and blue. Choose wisely, cowboy.' },
     ],
     choice: [
       { label: 'Blue pill', color: 'blue', scene: 'happy' },
@@ -74,7 +74,7 @@ export const SCENES = {
     lines: [
       { who: 'narrator', text: 'Billy swallows the blue pill. Everything goes warm, and bright...' },
       { who: 'narrator', text: 'He wakes up on his porch back in the holler. His truck is parked out front, good as new.' },
-      { who: 'narrator', text: 'The corn is high, the jugs are full, and Natasha is purring on his lap. Turns out she just wanted a warm spot to nap.' },
+      { who: 'narrator', text: 'The corn is high, the jugs are full, and Jinxy is purring on his lap. Turns out she just wanted a warm spot to nap.' },
       { who: 'wizard', text: 'Told you, student. The most powerful being known to man: a fella with a cold beer, a cat, and nowhere to be.' },
       { who: 'billy', text: 'Yeehaw.' },
     ],
@@ -84,11 +84,11 @@ export const SCENES = {
   // Red pill
   tbc: {
     bg: 'black',
-    cast: ['billy', 'natasha'],
+    cast: ['billy', 'jinxy'],
     lines: [
       { who: 'narrator', text: 'Billy swallows the red pill.' },
-      { who: 'narrator', text: 'The lamp flickers. The room begins to spin. Natasha smiles.' },
-      { who: 'natasha', text: 'Welcome to the real world, cowboy.' },
+      { who: 'narrator', text: 'The lamp flickers. The room begins to spin. Jinxy smiles.' },
+      { who: 'jinxy', text: 'Welcome to the real world, cowboy.' },
     ],
     then: { ending: 'tbc' },
   },

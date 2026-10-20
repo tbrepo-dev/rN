@@ -500,7 +500,7 @@ function buildPagoda() {
     goalKind: 'dojo',
     boss: true,
     bossScene: 'finale',
-    checkpointX: 62,
+    checkpointX: 65, // on solid ground (62 is over the pit)
     goalX: 172,
     goalJugs: 0,
   });

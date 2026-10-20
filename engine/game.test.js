@@ -845,3 +845,39 @@ test('Max takes double damage while resting and his defeat starts the finale', (
   assert.equal(g.mode, 'scene');
   assert.equal(g.scene.id, 'finale');
 });
+
+// ---- Checkpoints must never soft-lock the game --------------------------------
+for (const n of [1, 2, 3, 4, 5]) {
+  test(`level ${n}: the checkpoint has solid floor under Billy, so respawning never drops him in a pit`, () => {
+    const g = createGame({ level: n });
+    const floor = g.level.checkpointFloor ?? g.level.groundY;
+    const x = g.level.checkpointX;
+    assert.ok(g.tiles[floor][Math.floor(x + 0.05)] !== 0 && g.tiles[floor][Math.floor(x + 0.65)] !== 0, `checkpoint ${x} is over a gap`);
+    // actually die after passing it and make sure the respawn is stable for a couple of seconds
+    g.checkpoint = x;
+    g.checkpointFloor = floor;
+    g.checkpointHit = true;
+    g.mode = 'dying';
+    g.deathT = 2;
+    step(g, none);
+    assert.equal(g.mode, 'playing');
+    g.enemies = [];
+    run(g, none, 2);
+    assert.equal(g.mode, 'playing', 'did not fall');
+    assert.ok(g.player.onGround, 'standing on the ground after respawn');
+  });
+}
+
+test('a checkpoint wrongly placed over a pit backs up to the nearest solid ground', () => {
+  const g = createGame({ enemies: false, level: 5 });
+  g.checkpoint = 62; // the old bad spot: over the pit between x=60 and x=63
+  g.checkpointFloor = 9;
+  g.mode = 'dying';
+  g.deathT = 2;
+  step(g, none);
+  assert.equal(g.mode, 'playing');
+  assert.ok(g.player.x < 60, `moved back to ground at x=${g.player.x}`);
+  run(g, none, 1.5);
+  assert.equal(g.mode, 'playing');
+  assert.ok(g.player.onGround);
+});

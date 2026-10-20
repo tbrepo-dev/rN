@@ -2,10 +2,10 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SCENES } from '../engine/story';
 import { GEAR } from '../engine/game';
-import { Character, Natasha, gearEmoji } from './Sprites';
+import { Character, Jinxy, gearEmoji } from './Sprites';
 
-const NAMES = { billy: 'Billy', wizard: 'Merlinzo', natasha: 'Natasha', narrator: '', sign: '' };
-const NAME_COLORS = { billy: '#3d7be0', wizard: '#8a4fd1', natasha: '#2aa6a6' };
+const NAMES = { billy: 'Billy', wizard: 'Merlinzo', jinxy: 'Jinxy', narrator: '', sign: '' };
+const NAME_COLORS = { billy: '#3d7be0', wizard: '#8a4fd1', jinxy: '#2aa6a6' };
 const shadow = { textShadowColor: 'rgba(0,0,0,0.65)', textShadowRadius: 3, textShadowOffset: { width: 1, height: 2 } };
 
 // What backdrop is showing at line `idx`: the last bg set at or before it
@@ -60,15 +60,27 @@ function Backdrop({ bg, w, h, t }) {
           <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, bottom: 0, backgroundColor: '#8a5a33' }} />
         </View>
       );
-    case 'interrogation':
+    case 'interrogation': {
+      // One bare bulb swinging on its cord. Its light fans DOWN from the bulb and pools on the floor.
+      const swing = Math.sin(t * 2) * 7; // degrees
+      const coneH = floorY - h * 0.1;
+      const coneW = w * 0.5;
       return (
         <View style={StyleSheet.absoluteFill}>
           <View style={[StyleSheet.absoluteFill, { backgroundColor: '#05050a' }]} />
-          <View style={{ position: 'absolute', left: w / 2 - w * 0.22, top: h * 0.1, width: 0, height: 0, borderLeftWidth: w * 0.22, borderRightWidth: w * 0.22, borderBottomWidth: h * 0.62, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: `rgba(255,230,140,${0.14 + 0.04 * Math.sin(t * 3)})`, transform: [{ rotate: '180deg' }] }} />
-          <Text style={{ position: 'absolute', left: w / 2 - 20, top: h * 0.02, fontSize: 38, transform: [{ rotate: `${Math.sin(t * 2) * 8}deg` }] }}>💡</Text>
           <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, bottom: 0, backgroundColor: '#14141c' }} />
+          {/* dim pool of light on the floor, sliding with the swing */}
+          <View style={{ position: 'absolute', left: w / 2 - w * 0.26 + Math.sin(t * 2) * w * 0.05, top: floorY - h * 0.03, width: w * 0.52, height: h * 0.12, borderRadius: w, backgroundColor: `rgba(255,226,130,${0.16 + 0.03 * Math.sin(t * 3)})` }} />
+          {/* the cone: apex at the bulb, widening toward the floor */}
+          <View style={{ position: 'absolute', left: w / 2 - coneW / 2, top: h * 0.1, width: coneW, height: coneH, transformOrigin: '50% 0%', transform: [{ rotate: `${swing}deg` }] }}>
+            <View style={{ position: 'absolute', left: 0, top: 0, width: 0, height: 0, borderLeftWidth: coneW / 2, borderRightWidth: coneW / 2, borderBottomWidth: coneH, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: `rgba(255,226,130,${0.13 + 0.03 * Math.sin(t * 3)})` }} />
+          </View>
+          {/* bulb on its cord */}
+          <View style={{ position: 'absolute', left: w / 2 - 1, top: 0, width: 2, height: h * 0.1, backgroundColor: '#555', transformOrigin: '50% 0%', transform: [{ rotate: `${swing}deg` }] }} />
+          <View style={{ position: 'absolute', left: w / 2 - 12 + Math.sin((swing * Math.PI) / 180) * h * 0.1, top: h * 0.085, width: 24, height: 24, borderRadius: 12, backgroundColor: '#fff3b0', shadowColor: '#ffe27a', shadowRadius: 12, shadowOpacity: 1, shadowOffset: { width: 0, height: 0 } }} />
         </View>
       );
+    }
     case 'home':
       return (
         <View style={StyleSheet.absoluteFill}>
@@ -127,7 +139,7 @@ export function SceneView({ g, width, height, onAdvance, onChoose }) {
         </View>
       )}
       {!dark && b && (
-        <View style={{ position: 'absolute', right: width * 0.14, top: height * 0.62 - S * (b === 'natasha' ? 0.72 : 0.95) + bobFor(b), opacity: speaker === b || speaker === 'narrator' || speaker === 'sign' ? 1 : 0.8 }}>
+        <View style={{ position: 'absolute', right: width * 0.14, top: height * 0.62 - S * (b === 'jinxy' ? 0.72 : 0.95) + bobFor(b), opacity: speaker === b || speaker === 'narrator' || speaker === 'sign' ? 1 : 0.8 }}>
           <Character who={b} size={S} />
         </View>
       )}
@@ -194,7 +206,7 @@ export function EndingView({ g, width, height, onRestart }) {
         <Character who="billy" size={S} gear={g.gear} />
       </View>
       <View style={{ position: 'absolute', left: width * 0.62 + S * 0.55, top: height * 0.62 - S * 0.4 }}>
-        <Natasha size={S * 0.55} />
+        <Jinxy size={S * 0.55} />
       </View>
       <View style={styles.endBox} pointerEvents="none">
         <Text style={styles.endTitle}>THE END</Text>

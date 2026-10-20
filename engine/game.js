@@ -238,7 +238,17 @@ function newPlayer(x, floor) {
   };
 }
 
+// A checkpoint must have floor under Billy's feet; if it doesn't, back up to the nearest spot that does
+function groundedAt(g, x, floor) {
+  const row = Math.round(floor);
+  return solidAt(g, Math.floor(x + 0.05), row) && solidAt(g, Math.floor(x + PLAYER_W - 0.05), row);
+}
+
 export function respawn(g) {
+  let x = g.checkpoint;
+  for (let i = 0; i < 60 && x > 0 && !groundedAt(g, x, g.checkpointFloor); i++) x -= 1;
+  if (!groundedAt(g, x, g.checkpointFloor)) x = g.level.startX;
+  g.checkpoint = x;
   g.player = newPlayer(g.checkpoint, g.checkpointFloor);
   g.player.armor = armorMax(g);
   g.mode = 'playing';

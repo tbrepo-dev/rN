@@ -207,7 +207,7 @@ export function Critter({ e, ts }) {
   const hurt = e.hit > 0;
   const flip = FLYERS[e.kind] ? (e.dir > 0 ? 1 : -1) : e.dir > 0 ? -1 : 1;
   const transform = e.alive
-    ? [{ translateX: shake }, { scaleX: flip * (e.kind === 'max' ? 1.3 : 1) }, { scaleY: ((e.kind === 'turkey' || e.kind === 'troll') && e.state === 'dash') || (e.kind === 'max' && e.state === 'wind') ? 0.88 : 1 }]
+    ? [{ translateX: shake }, { scaleX: flip }, { scaleY: ((e.kind === 'turkey' || e.kind === 'troll') && e.state === 'dash') || (e.kind === 'max' && e.state === 'wind') ? 0.88 : 1 }]
     : e.squished
     ? [{ scaleY: 0.25 }, { scaleX: flip }]
     : [{ rotate: `${Math.min(e.squish * 540, 180)}deg` }, { scaleX: flip }];
@@ -227,7 +227,11 @@ export function Critter({ e, ts }) {
       }}
     >
       {e.kind === 'boss' && <View style={{ position: 'absolute', bottom: 0, width: e.w * ts * 1.5, height: e.h * ts * 0.9, borderRadius: ts, backgroundColor: 'rgba(170,70,255,0.28)' }} />}
-      <Text style={{ fontSize: size, lineHeight: size * 1.15, includeFontPadding: false }}>{EMOJI[e.kind]}</Text>
+      {e.kind === 'max' ? (
+        <MaxCat W={e.w * ts} H={e.h * ts} state={e.state} />
+      ) : (
+        <Text style={{ fontSize: size, lineHeight: size * 1.15, includeFontPadding: false }}>{EMOJI[e.kind]}</Text>
+      )}
       {e.kind === 'ninja' && (
         <>
           <View style={{ position: 'absolute', top: e.h * ts * 0.18, left: e.w * ts * 0.12, width: e.w * ts * 0.76, height: Math.max(3, ts * 0.1), backgroundColor: '#d92b2b' }} />
@@ -814,30 +818,125 @@ export function Fridge({ x, y, ts, t }) {
 // Cast for cutscenes
 const FAKE_P = { x: 0, y: 0, w: 0.7, h: 0.95, facing: 1, onGround: true, run: 0, invuln: 0, rush: 0, slash: 0, shielding: false };
 
-export function Natasha({ size }) {
+// Jinxy: a small, dark-grey Russian Blue with big cheekbones, vivid green eyes and a mob boss's fur hat
+export function Jinxy({ size }) {
   const S = size;
-  const fur = '#8fa3b8';
+  const fur = '#565e69';
+  const dark = '#3d444d';
+  const sheen = '#7a8695'; // the silvery sheen of a Russian Blue, strongest on the cheeks
   return (
     <View style={{ width: S * 0.9, height: S * 0.9 }}>
-      {/* tail */}
-      <View style={{ position: 'absolute', left: S * 0.62, top: S * 0.5, width: S * 0.34, height: S * 0.1, borderRadius: S * 0.05, backgroundColor: fur, transform: [{ rotate: '-35deg' }] }} />
-      {/* body */}
-      <View style={{ position: 'absolute', left: S * 0.18, top: S * 0.46, width: S * 0.5, height: S * 0.4, borderRadius: S * 0.2, backgroundColor: fur }} />
-      <View style={{ position: 'absolute', left: S * 0.3, top: S * 0.56, width: S * 0.26, height: S * 0.3, borderRadius: S * 0.13, backgroundColor: '#c4d0dc' }} />
-      {/* head */}
-      <View style={{ position: 'absolute', left: S * 0.16, top: S * 0.18, width: S * 0.5, height: S * 0.38, borderRadius: S * 0.2, backgroundColor: fur }} />
-      <View style={{ position: 'absolute', left: S * 0.16, top: S * 0.12, width: 0, height: 0, borderLeftWidth: S * 0.08, borderRightWidth: S * 0.08, borderBottomWidth: S * 0.16, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: fur }} />
-      <View style={{ position: 'absolute', left: S * 0.5, top: S * 0.12, width: 0, height: 0, borderLeftWidth: S * 0.08, borderRightWidth: S * 0.08, borderBottomWidth: S * 0.16, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: fur }} />
-      {/* ushanka fur hat with a red star */}
-      <View style={{ position: 'absolute', left: S * 0.12, top: S * 0.08, width: S * 0.58, height: S * 0.2, borderRadius: S * 0.1, backgroundColor: '#4a3a30', borderWidth: 2, borderColor: '#2d221b' }} />
-      <View style={{ position: 'absolute', left: S * 0.36, top: S * 0.11, width: S * 0.1, height: S * 0.1, backgroundColor: '#d92b2b', transform: [{ rotate: '45deg' }] }} />
-      {/* face */}
-      <View style={{ position: 'absolute', left: S * 0.26, top: S * 0.33, width: S * 0.08, height: S * 0.08, borderRadius: S * 0.04, backgroundColor: '#7dff8a', borderWidth: 1, borderColor: '#1c5a26' }} />
-      <View style={{ position: 'absolute', left: S * 0.46, top: S * 0.33, width: S * 0.08, height: S * 0.08, borderRadius: S * 0.04, backgroundColor: '#7dff8a', borderWidth: 1, borderColor: '#1c5a26' }} />
-      <View style={{ position: 'absolute', left: S * 0.38, top: S * 0.42, width: S * 0.05, height: S * 0.04, borderRadius: S * 0.02, backgroundColor: '#f2a0a8' }} />
-      {/* dark glasses + a tiny scarf, because she means business */}
-      <View style={{ position: 'absolute', left: S * 0.22, top: S * 0.31, width: S * 0.38, height: S * 0.1, borderRadius: 4, backgroundColor: 'rgba(10,10,20,0.85)' }} />
-      <View style={{ position: 'absolute', left: S * 0.24, top: S * 0.5, width: S * 0.34, height: S * 0.07, borderRadius: 4, backgroundColor: '#b2262b' }} />
+      {/* tail, curled up behind */}
+      <View style={{ position: 'absolute', left: S * 0.64, top: S * 0.52, width: S * 0.3, height: S * 0.1, borderRadius: S * 0.05, backgroundColor: fur, transform: [{ rotate: '-35deg' }] }} />
+      <View style={{ position: 'absolute', left: S * 0.84, top: S * 0.36, width: S * 0.1, height: S * 0.1, borderRadius: S * 0.05, backgroundColor: dark }} />
+      {/* compact body, lighter chest, little paws */}
+      <View style={{ position: 'absolute', left: S * 0.2, top: S * 0.52, width: S * 0.48, height: S * 0.36, borderRadius: S * 0.18, backgroundColor: fur }} />
+      <View style={{ position: 'absolute', left: S * 0.31, top: S * 0.6, width: S * 0.24, height: S * 0.28, borderRadius: S * 0.12, backgroundColor: sheen }} />
+      <View style={{ position: 'absolute', left: S * 0.22, top: S * 0.84, width: S * 0.14, height: S * 0.07, borderRadius: S * 0.04, backgroundColor: dark }} />
+      <View style={{ position: 'absolute', left: S * 0.5, top: S * 0.84, width: S * 0.14, height: S * 0.07, borderRadius: S * 0.04, backgroundColor: dark }} />
+      {/* big pointed ears with grey-pink insides */}
+      <View style={{ position: 'absolute', left: S * 0.11, top: S * 0.02, width: 0, height: 0, borderLeftWidth: S * 0.1, borderRightWidth: S * 0.1, borderBottomWidth: S * 0.26, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: fur }} />
+      <View style={{ position: 'absolute', left: S * 0.5, top: S * 0.02, width: 0, height: 0, borderLeftWidth: S * 0.1, borderRightWidth: S * 0.1, borderBottomWidth: S * 0.26, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: fur }} />
+      <View style={{ position: 'absolute', left: S * 0.16, top: S * 0.12, width: 0, height: 0, borderLeftWidth: S * 0.05, borderRightWidth: S * 0.05, borderBottomWidth: S * 0.13, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#8f7a83' }} />
+      <View style={{ position: 'absolute', left: S * 0.55, top: S * 0.12, width: 0, height: 0, borderLeftWidth: S * 0.05, borderRightWidth: S * 0.05, borderBottomWidth: S * 0.13, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#8f7a83' }} />
+      {/* wide head with BIG cheekbones: puffed cheek pads plus a bright ridge under each eye */}
+      <View style={{ position: 'absolute', left: S * 0.1, top: S * 0.2, width: S * 0.62, height: S * 0.38, borderRadius: S * 0.19, backgroundColor: fur }} />
+      <View style={{ position: 'absolute', left: S * 0.05, top: S * 0.34, width: S * 0.24, height: S * 0.22, borderRadius: S * 0.11, backgroundColor: sheen }} />
+      <View style={{ position: 'absolute', left: S * 0.53, top: S * 0.34, width: S * 0.24, height: S * 0.22, borderRadius: S * 0.11, backgroundColor: sheen }} />
+      <View style={{ position: 'absolute', left: S * 0.11, top: S * 0.33, width: S * 0.2, height: S * 0.045, borderRadius: S * 0.03, backgroundColor: '#a7b3c1', transform: [{ rotate: '-22deg' }] }} />
+      <View style={{ position: 'absolute', left: S * 0.51, top: S * 0.33, width: S * 0.2, height: S * 0.045, borderRadius: S * 0.03, backgroundColor: '#a7b3c1', transform: [{ rotate: '22deg' }] }} />
+      {/* big vivid green eyes with slit pupils */}
+      <View style={{ position: 'absolute', left: S * 0.22, top: S * 0.26, width: S * 0.13, height: S * 0.11, borderRadius: S * 0.055, backgroundColor: '#8cf15a', borderWidth: 1, borderColor: '#1f5a14' }} />
+      <View style={{ position: 'absolute', left: S * 0.47, top: S * 0.26, width: S * 0.13, height: S * 0.11, borderRadius: S * 0.055, backgroundColor: '#8cf15a', borderWidth: 1, borderColor: '#1f5a14' }} />
+      <View style={{ position: 'absolute', left: S * 0.275, top: S * 0.27, width: S * 0.025, height: S * 0.09, borderRadius: 2, backgroundColor: '#0b1a08' }} />
+      <View style={{ position: 'absolute', left: S * 0.525, top: S * 0.27, width: S * 0.025, height: S * 0.09, borderRadius: 2, backgroundColor: '#0b1a08' }} />
+      {/* small grey-pink nose, mouth, whiskers */}
+      <View style={{ position: 'absolute', left: S * 0.37, top: S * 0.4, width: S * 0.07, height: S * 0.05, borderRadius: S * 0.03, backgroundColor: '#9c828a' }} />
+      <View style={{ position: 'absolute', left: S * 0.385, top: S * 0.455, width: S * 0.04, height: S * 0.025, borderBottomWidth: 2, borderColor: dark, borderRadius: 3 }} />
+      {[0.42, 0.47].map((t, i) => (
+        <React.Fragment key={t}>
+          <View style={{ position: 'absolute', left: -S * 0.03, top: S * t, width: S * 0.18, height: 1, backgroundColor: '#dfe6ee', transform: [{ rotate: `${(i ? 10 : -6)}deg` }] }} />
+          <View style={{ position: 'absolute', left: S * 0.66, top: S * t, width: S * 0.18, height: 1, backgroundColor: '#dfe6ee', transform: [{ rotate: `${(i ? -10 : 6)}deg` }] }} />
+        </React.Fragment>
+      ))}
+      {/* black fur hat with ear flaps and a red star: Russian mob boss */}
+      <View style={{ position: 'absolute', left: S * 0.12, top: S * 0.08, width: S * 0.58, height: S * 0.17, borderRadius: S * 0.09, backgroundColor: '#2b2420', borderWidth: 2, borderColor: '#14100e' }} />
+      <View style={{ position: 'absolute', left: S * 0.08, top: S * 0.18, width: S * 0.1, height: S * 0.2, borderRadius: S * 0.05, backgroundColor: '#2b2420' }} />
+      <View style={{ position: 'absolute', left: S * 0.64, top: S * 0.18, width: S * 0.1, height: S * 0.2, borderRadius: S * 0.05, backgroundColor: '#2b2420' }} />
+      <View style={{ position: 'absolute', left: S * 0.36, top: S * 0.115, width: S * 0.09, height: S * 0.09, backgroundColor: '#d92b2b', transform: [{ rotate: '45deg' }] }} />
+      {/* red scarf */}
+      <View style={{ position: 'absolute', left: S * 0.22, top: S * 0.54, width: S * 0.34, height: S * 0.07, borderRadius: 4, backgroundColor: '#b2262b' }} />
+    </View>
+  );
+}
+
+// Max: a huge, old, fat warm-grey tabby. Faces left, like the emoji he replaces.
+export function MaxCat({ W, H, state }) {
+  const fur = '#a0958a';
+  const light = '#c9bfb4';
+  const stripe = '#6e645c';
+  const dark = '#453d37';
+  const resting = state === 'rest';
+  const angry = state === 'wind' || state === 'slam';
+  const stripeBars = [0, 1, 2, 3, 4];
+  return (
+    <View style={{ width: W, height: H }}>
+      {/* thick ringed tail */}
+      <View style={{ position: 'absolute', left: W * 0.88, top: H * 0.26, width: W * 0.13, height: H * 0.56, borderRadius: W * 0.07, backgroundColor: fur, transform: [{ rotate: '14deg' }], overflow: 'hidden' }}>
+        {[0.12, 0.38, 0.64].map((f) => (
+          <View key={f} style={{ position: 'absolute', left: 0, right: 0, top: `${f * 100}%`, height: '12%', backgroundColor: stripe }} />
+        ))}
+      </View>
+      {/* round, heavy body with a pale belly */}
+      <View style={{ position: 'absolute', left: W * 0.2, top: H * 0.3, width: W * 0.74, height: H * 0.68, borderRadius: H * 0.34, backgroundColor: fur }} />
+      <View style={{ position: 'absolute', left: W * 0.34, top: H * 0.6, width: W * 0.5, height: H * 0.38, borderRadius: H * 0.2, backgroundColor: light }} />
+      {/* tabby stripes down the back */}
+      {stripeBars.map((i) => (
+        <View key={i} style={{ position: 'absolute', left: W * (0.38 + i * 0.1), top: H * 0.31, width: W * 0.035, height: H * (i === 0 || i === 4 ? 0.16 : 0.22), borderRadius: 4, backgroundColor: stripe, transform: [{ rotate: `${(i - 2) * 9}deg` }] }} />
+      ))}
+      {/* stubby paws */}
+      <View style={{ position: 'absolute', left: W * 0.2, top: H * 0.9, width: W * 0.2, height: H * 0.1, borderRadius: H * 0.05, backgroundColor: light }} />
+      <View style={{ position: 'absolute', left: W * 0.72, top: H * 0.9, width: W * 0.2, height: H * 0.1, borderRadius: H * 0.05, backgroundColor: light }} />
+      {/* ears */}
+      <View style={{ position: 'absolute', left: W * 0.04, top: 0, width: 0, height: 0, borderLeftWidth: W * 0.065, borderRightWidth: W * 0.065, borderBottomWidth: H * 0.22, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: fur }} />
+      <View style={{ position: 'absolute', left: W * 0.34, top: 0, width: 0, height: 0, borderLeftWidth: W * 0.065, borderRightWidth: W * 0.065, borderBottomWidth: H * 0.22, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: fur }} />
+      {/* big round head with heavy jowls */}
+      <View style={{ position: 'absolute', left: 0, top: H * 0.1, width: W * 0.5, height: H * 0.56, borderRadius: H * 0.28, backgroundColor: fur }} />
+      <View style={{ position: 'absolute', left: -W * 0.01, top: H * 0.36, width: W * 0.52, height: H * 0.3, borderRadius: H * 0.15, backgroundColor: '#b5aaa0' }} />
+      {/* the tabby "M" on the forehead */}
+      {[0.17, 0.235, 0.3].map((x, i) => (
+        <View key={x} style={{ position: 'absolute', left: W * x, top: H * 0.13, width: W * 0.025, height: H * (i === 1 ? 0.15 : 0.11), borderRadius: 3, backgroundColor: stripe }} />
+      ))}
+      {/* cheek stripes */}
+      {[0.4, 0.46].map((t) => (
+        <View key={t} style={{ position: 'absolute', left: W * 0.03, top: H * t, width: W * 0.1, height: H * 0.03, borderRadius: 3, backgroundColor: stripe }} />
+      ))}
+      {/* tired, droopy eyes: half-lidded, closed when he's winded, wide when he's mad */}
+      {[0.1, 0.31].map((x) => (
+        <View key={x} style={{ position: 'absolute', left: W * x, top: H * 0.27, width: W * 0.1, height: H * (resting ? 0.025 : 0.09), borderRadius: H * 0.045, backgroundColor: resting ? dark : '#e8d25a', overflow: 'hidden', borderWidth: resting ? 0 : 1, borderColor: dark }}>
+          {!resting && <View style={{ position: 'absolute', left: '40%', top: '15%', width: '20%', height: '70%', borderRadius: 2, backgroundColor: dark }} />}
+          {!resting && !angry && <View style={{ position: 'absolute', left: -2, right: -2, top: -2, height: '55%', backgroundColor: fur }} />}
+        </View>
+      ))}
+      {angry && (
+        <>
+          <View style={{ position: 'absolute', left: W * 0.08, top: H * 0.22, width: W * 0.14, height: 3, backgroundColor: dark, transform: [{ rotate: '18deg' }] }} />
+          <View style={{ position: 'absolute', left: W * 0.29, top: H * 0.22, width: W * 0.14, height: 3, backgroundColor: dark, transform: [{ rotate: '-18deg' }] }} />
+        </>
+      )}
+      {/* wise old bushy white brows */}
+      {[0.08, 0.3].map((x) => (
+        <View key={x} style={{ position: 'absolute', left: W * x, top: H * 0.2, width: W * 0.14, height: H * 0.04, borderRadius: 4, backgroundColor: '#ece6dd' }} />
+      ))}
+      {/* pink nose, grumpy mouth, white whiskers */}
+      <View style={{ position: 'absolute', left: W * 0.215, top: H * 0.4, width: W * 0.07, height: H * 0.05, borderRadius: H * 0.03, backgroundColor: '#c98b91' }} />
+      <View style={{ position: 'absolute', left: W * 0.2, top: H * 0.47, width: W * 0.1, height: H * 0.06, borderBottomWidth: 3, borderColor: dark, borderRadius: 8 }} />
+      {[0.42, 0.48, 0.54].map((t, i) => (
+        <React.Fragment key={t}>
+          <View style={{ position: 'absolute', left: -W * 0.08, top: H * t, width: W * 0.22, height: 1.5, backgroundColor: '#f2eee8', transform: [{ rotate: `${(i - 1) * 8}deg` }] }} />
+          <View style={{ position: 'absolute', left: W * 0.36, top: H * t, width: W * 0.22, height: 1.5, backgroundColor: '#f2eee8', transform: [{ rotate: `${(1 - i) * 8}deg` }] }} />
+        </React.Fragment>
+      ))}
     </View>
   );
 }
@@ -851,7 +950,7 @@ export function Character({ who, size, gear }) {
     );
   }
   if (who === 'wizard') return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.1 }}>🧙‍♂️</Text>;
-  if (who === 'natasha') return <Natasha size={size * 0.8} />;
-  if (who === 'max') return <Text style={{ fontSize: size * 1.3, lineHeight: size * 1.4 }}>🐈</Text>;
+  if (who === 'jinxy') return <Jinxy size={size * 0.8} />;
+  if (who === 'max') return <MaxCat W={size * 1.6} H={size * 1.4} state="walk" />;
   return null;
 }
