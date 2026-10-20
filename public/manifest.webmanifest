@@ -1,0 +1,11 @@
+{
+  "name": "Hillbilly Bros",
+  "short_name": "Hillbilly",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#7ec8e3",
+  "theme_color": "#7ec8e3",
+  "icons": [{ "src": "./icon.png", "sizes": "512x512", "type": "image/png" }]
+}
