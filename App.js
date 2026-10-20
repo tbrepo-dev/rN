@@ -170,7 +170,9 @@ export default function App() {
         {g.enemies.map((e, i) => e.x > g.camX - 2 && e.x < g.camX + viewW + 2 && <Critter key={i} e={e} ts={ts} />)}
         <Cletus p={p} ts={ts} />
         {g.effects.map((f, i) =>
-          f.kind === 'jug' ? (
+          f.kind === 'puff' ? (
+            <Emoji key={`f${i}`} ch="💨" x={f.x - 0.4} y={f.y - 0.5 + f.t} size={0.8} ts={ts} />
+          ) : f.kind === 'jug' ? (
             <Jug key={`f${i}`} x={f.x} y={f.y - f.t * 2.5} ts={ts} t={0} />
           ) : (
             <Text key={`f${i}`} style={[styles.pop, { left: f.x * ts, top: (f.y - f.t * 1.5) * ts, fontSize: ts * 0.5 }]}>

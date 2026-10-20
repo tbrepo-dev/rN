@@ -10,6 +10,8 @@ const EPS = 1e-4;
 const C = {
   gravity: 55,
   jumpV: 20.5,
+  airJumpV: 19,
+  airJumps: 1,
   releaseGravity: 3, // extra gravity multiplier when jump released while rising
   maxFall: 24,
   walk: 8,
@@ -71,6 +73,7 @@ function newPlayer(x) {
     coyote: 0,
     buf: 0,
     jumping: false,
+    airJumps: C.airJumps,
     run: 0,
   };
 }
@@ -244,7 +247,15 @@ function updatePlayer(g, input, dt) {
     p.coyote = 0;
     p.jumping = true;
     p.onGround = false;
+  } else if (jumpPressed && !p.onGround && p.airJumps > 0) {
+    // Double jump: one extra hop in mid-air, refilled on landing
+    p.vy = -C.airJumpV;
+    p.airJumps--;
+    p.buf = 0;
+    p.jumping = true;
+    g.effects.push({ kind: 'puff', x: p.x + p.w / 2, y: p.y + p.h, t: 0 });
   }
+  if (p.onGround) p.airJumps = C.airJumps;
 
   let gravity = C.gravity;
   if (p.vy < 0 && !input.jump) gravity *= C.releaseGravity;

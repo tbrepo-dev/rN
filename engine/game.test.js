@@ -27,6 +27,41 @@ test('full jump clears ~3.5 tiles but not 4', () => {
   assert.ok(height > 3.3 && height < 4, `jump height ${height}`);
 });
 
+test('double jump reaches blocks a single jump cannot', () => {
+  const run1 = (second) => {
+    const g = createGame({ enemies: false });
+    run(g, none, 0.3);
+    const startY = g.player.y;
+    let top = startY;
+    let t = 0;
+    run(g, () => {
+      top = Math.min(top, g.player.y);
+      t += STEP;
+      // hold the jump; when `second`, release then press again at the apex (~0.38s)
+      const press = second ? t < 0.36 || (t > 0.4 && t < 0.9) : t < 0.9;
+      return { ...none, jump: press };
+    }, 1.4);
+    return { height: startY - top, g };
+  };
+  const single = run1(false).height;
+  const dbl = run1(true).height;
+  assert.ok(dbl > single + 2, `single ${single} double ${dbl}`);
+  assert.ok(dbl > 5.5, `double jump height ${dbl}`);
+});
+
+test('only one air jump until you land', () => {
+  const g = createGame({ enemies: false });
+  run(g, none, 0.3);
+  let t = 0;
+  let presses = [0.05, 0.3, 0.5, 0.7];
+  let vyAfter = [];
+  run(g, () => {
+    t += STEP;
+    return { ...none, jump: presses.some((p) => t > p && t < p + 0.05) };
+  }, 0.8);
+  assert.equal(g.player.airJumps, 0);
+});
+
 test('short tap jumps lower than held jump', () => {
   const g = createGame({ enemies: false });
   run(g, none, 0.3);
