@@ -399,7 +399,7 @@ export default function App() {
     ['throw', throwC, 1.15],
     ['rush', shineC, 1.2],
   ];
-  if (g.gear.shield && level.kind !== 'drive') actions.push(['shield', shieldC, 1.25]);
+  if (g.gear.shield || level.kind === 'drive') actions.push(['shield', shieldC, 1.25]);
 
   // Multi-touch: left cluster = ◀ ▶, right cluster = JUMP / FIRE / SHINE / SHIELD.
   // A touch goes to whichever button it is closest to (relative to its size).
@@ -565,9 +565,10 @@ export default function App() {
             {isDrive && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: prompt ? '100%' : '0%', backgroundColor: prompt === 'CARJACK' ? '#e0402a' : '#5fd13a', opacity: 0.8 }} />}
             <Text style={[styles.btnText, { fontSize: isDrive ? 10 : 11 }]}>{isDrive ? prompt || 'ACTION' : rushing ? 'RUSH!' : meter >= 1 ? 'RUSH' : 'SHINE'}</Text>
           </View>
-          {g.gear.shield && !isDrive && (
+          {(g.gear.shield || isDrive) && (
             <View style={[styles.btn, { left: shieldC.x - shieldC.r, top: shieldC.y - shieldC.r, bottom: undefined, width: shieldC.r * 2, height: shieldC.r * 2, borderRadius: shieldC.r, opacity: inp.shield ? 0.9 : 0.5, borderWidth: inp.shield ? 3 : 0, borderColor: '#9cc7ff' }]}>
-              <Text style={{ fontSize: 26 }}>🛡️</Text>
+              <Text style={{ fontSize: isDrive ? 20 : 26 }}>{isDrive ? '⏪' : '🛡️'}</Text>
+              {isDrive && <Text style={[styles.btnText, { fontSize: 10 }]}>REV</Text>}
             </View>
           )}
         </View>
@@ -592,7 +593,7 @@ export default function App() {
           {g.levelNo === 2 && <Text style={styles.hint}>Aliens drop ⚡ ammo for the ray gun.{'\n'}Your 🌽 button fires the ray gun whenever you have ammo.</Text>}
           {g.levelNo === 3 && <Text style={styles.hint}>🗡️ Fire slashes enemies up close, then shoots.{'\n'}Hold 🛡️ to block from the front.</Text>}
           {g.levelNo === 4 && <Text style={styles.hint}>Hug the edge of a girder and jump up through the gap. Barrels roll toward you!{'\n'}Shoot or slash them, or hold 🛡️ to block.</Text>}
-          {g.levelNo === 7 && <Text style={styles.hint}>◀ ▶ steer, GAS drives (or walks), 🛑 brakes and reverses.{'\n'}ACTION gets in or out of a ride, or CARJACKS a farmer (he may know a lead, or nothing at all).{'\n'}Each landmark you reach gives the next clue. The map only shows your current lead.</Text>}
+          {g.levelNo === 7 && <Text style={styles.hint}>◀ ▶ steer, GAS drives (or walks), 🛑 brakes, ⏪ REV backs up.{'\n'}ACTION gets in or out of a ride, or CARJACKS a farmer (he may know a lead, or nothing at all).{'\n'}Each landmark you reach gives the next clue. The map only shows your current lead.</Text>}
           {g.levelNo === 6 && <Text style={styles.hint}>Grab flaming tequila 🔥, then tap FIRE to BELCH a flame ball.{'\n'}Pack Billy eats them. Feed him 5. He can't be hurt, so keep moving!</Text>}
           {g.levelNo === 5 && <Text style={styles.hint}>Jump Max's shockwaves, and hit him while he's winded: he takes DOUBLE damage.{'\n'}Grab the 1UP barrel on the rooftops.</Text>}
           <Text style={styles.tap}>Tap to begin</Text>

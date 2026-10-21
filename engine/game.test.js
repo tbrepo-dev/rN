@@ -1233,7 +1233,7 @@ test('driving off the road into a field slows you down', () => {
   assert.ok(speedOf(v2) < onRoad * 0.7, `field ${speedOf(v2)} vs road ${onRoad}`);
 });
 
-test('steering turns the vehicle, and braking stops it and then reverses', () => {
+test('steering turns the vehicle, and the brake stops it (and keeps it stopped)', () => {
   const g = town();
   const v = emptyVehicle(g);
   put(g, v, 62, ROAD_Y, 0, 8);
@@ -1247,8 +1247,55 @@ test('steering turns the vehicle, and braking stops it and then reverses', () =>
   intoVehicle(g2, w);
   run(g2, { ...none, throw: true }, 0.6);
   assert.ok(speedOf(w) < 3, `braking hard: ${speedOf(w)}`);
-  run(g2, { ...none, throw: true }, 1.5);
-  assert.ok(w.vx < -0.5, 'holding brake then reverses');
+  run(g2, { ...none, throw: true }, 2);
+  assert.ok(speedOf(w) < 0.05, 'stopped, and the brake alone does not back you up');
+});
+
+test('REVERSE: backs up from a standstill, and brakes first if you are still rolling forward', () => {
+  const g = town();
+  const v = emptyVehicle(g);
+  put(g, v, 80, ROAD_Y, 0, 0);
+  intoVehicle(g, v);
+  run(g, { ...none, shield: true }, 1.5);
+  assert.ok(v.vx < -5, `reversing at ${v.vx.toFixed(1)}`);
+  assert.ok(v.vx > -VEHICLES.pickup.max * 0.6, 'slower than going forwards');
+  assert.ok(v.x < 79, 'moved backwards');
+  // rolling forward at speed: reverse brakes, then goes back
+  const g2 = town();
+  const w = emptyVehicle(g2);
+  put(g2, w, 70, ROAD_Y, 0, 11);
+  intoVehicle(g2, w);
+  run(g2, { ...none, shield: true }, 0.4);
+  assert.ok(w.vx < 7 && w.vx > -2, `slowing from 11: ${w.vx.toFixed(1)}`);
+  run(g2, { ...none, shield: true }, 2);
+  assert.ok(w.vx < -4, 'then reversing');
+});
+
+test('steering works the natural way round while reversing', () => {
+  const g = town();
+  const v = emptyVehicle(g);
+  put(g, v, 80, ROAD_Y, 0, 0);
+  intoVehicle(g, v);
+  run(g, { ...none, shield: true, right: true }, 1.2);
+  // reversing with the wheel turned right swings the nose to the LEFT (it goes back and round)
+  assert.ok(v.h < -0.3, `heading ${v.h.toFixed(2)}`);
+  assert.ok(v.vx * Math.cos(v.h) + v.vy * Math.sin(v.h) < -1, 'still going backwards (along its own axis)');
+});
+
+test('every vehicle (and Billy on foot) can reverse', () => {
+  for (const type of ['pickup', 'tractor', 'trash']) {
+    const g = town();
+    const v = drive(g).vehicles.find((x) => x.type === type);
+    put(g, v, 80, ROAD_Y, 0, 0);
+    intoVehicle(g, v);
+    run(g, { ...none, shield: true }, 1.5);
+    assert.ok(v.vx < -2, `${type} reverses (${v.vx.toFixed(1)})`);
+  }
+  const g = town();
+  const P = drive(g).player;
+  const x0 = P.x;
+  run(g, { ...none, shield: true }, 1);
+  assert.ok(P.x < x0 - 1, 'Billy walks backwards on foot');
 });
 
 test('ACTION gets in an empty vehicle and out again', () => {
@@ -1853,4 +1900,106 @@ test('the roads are busy: lots of cars to crash into', () => {
   assert.ok(parked.length >= 30, `${parked.length} parked cars`);
   assert.ok(vs.length >= 70, `${vs.length} vehicles in total`);
   for (const k of ['pickup', 'tractor', 'trash']) assert.ok(vs.filter((v) => v.type === k).length >= 6, `${k}s`);
+});
+
+// ---- Easier to shake the cops ---------------------------------------------------------
+test('a pickup can outrun a cop car down a straight road', () => {
+  assert.ok(VEHICLES.pickup.max > VEHICLES.cop.max + 1.5, `pickup ${VEHICLES.pickup.max}, cop ${VEHICLES.cop.max}`);
+  const g = createGame({ level: 7 });
+  const D = drive(g);
+  const v = emptyVehicle(g);
+  put(g, v, 62, ROAD_Y + 1.2, 0, 0);
+  intoVehicle(g, v);
+  D.heat = 2;
+  const cop = (() => { run(g, none, 3); return D.vehicles.find((c) => c.driver === 'cop'); })();
+  assert.ok(cop);
+  D.vehicles = D.vehicles.filter((x) => x === cop || x === v); // a clear road
+  put(g, cop, 40, ROAD_Y + 1.2, 0, 8);
+  put(g, v, 62, ROAD_Y + 1.2, 0, 8);
+  const gap0 = Math.hypot(cop.x - v.x, cop.y - v.y);
+  for (let i = 0; i < 60 * 6; i++) {
+    D.heat = Math.max(D.heat, 1.5);
+    step(g, { ...none, jump: true });
+    if (g.mode !== 'playing') break;
+  }
+  const gap = Math.hypot(cop.x - v.x, cop.y - v.y);
+  assert.ok(g.mode === 'playing', 'not busted');
+  assert.ok(gap > gap0 + 8 || cop.wreck, `gap grew from ${gap0.toFixed(0)} to ${gap.toFixed(0)}`);
+});
+
+test('a cop that is left far behind gives up and goes home', () => {
+  const g = createGame({ level: 7 });
+  const D = drive(g);
+  D.heat = 2;
+  run(g, none, 3);
+  const cop = D.vehicles.find((c) => c.driver === 'cop');
+  assert.ok(cop);
+  D.player.invuln = 99;
+  let gone = false;
+  for (let i = 0; i < 60 * 7; i++) {
+    cop.vx = cop.vy = 0;
+    cop.x = D.player.x + 50;
+    cop.y = D.player.y;
+    D.heat = 2;
+    step(g, none);
+    if (cop.wreck) {
+      gone = true;
+      break;
+    }
+  }
+  assert.ok(gone, 'the cop gave up after about five seconds');
+});
+
+test('the heat drops quickly once you have lost the cops', () => {
+  const g = createGame({ level: 7 });
+  const D = drive(g);
+  D.copsEnabled = false;
+  D.heat = 2.5;
+  run(g, none, 7);
+  assert.equal(stars(D), 0, `still ${D.heat.toFixed(2)} after 7s`);
+});
+
+test('one cop per star, not an army', () => {
+  const copsFor = (heat) => {
+    const g = createGame({ level: 7 });
+    const D = drive(g);
+    D.heat = heat;
+    for (let i = 0; i < 60 * 20; i++) {
+      D.heat = heat;
+      D.randCopT = 999;
+      D.player.invuln = 999;
+      D.player.x = 12.5;
+      D.player.y = 183;
+      step(g, none);
+    }
+    return D.vehicles.filter((c) => c.driver === 'cop' && !c.wreck).length;
+  };
+  assert.ok(copsFor(1.5) <= 1 + 1, 'one star: about one cop');
+  assert.ok(copsFor(3.5) <= 3 + 1, 'three stars: about three');
+});
+
+test('it takes a cop a few seconds of sitting on you to bust you', () => {
+  const g = createGame({ level: 7 });
+  const D = drive(g);
+  D.heat = 1.5;
+  run(g, none, 3);
+  const cop = D.vehicles.find((v) => v.driver === 'cop');
+  g.lives = 3;
+  D.player.invuln = 999;
+  const stuck = () => {
+    cop.vx = cop.vy = 0;
+    put(g, cop, D.player.x + 1.5, D.player.y, Math.PI, 0);
+    cop.inp = { steer: 0, gas: false, brake: true };
+    D.heat = Math.max(D.heat, 1.5);
+  };
+  for (let i = 0; i < 60 * 2.0; i++) {
+    stuck();
+    step(g, none);
+  }
+  assert.equal(g.mode, 'playing', 'still free after 2 seconds');
+  for (let i = 0; i < 60 * 1.5; i++) {
+    stuck();
+    step(g, none);
+  }
+  assert.equal(g.mode, 'dying', 'busted after about 2.6 seconds');
 });

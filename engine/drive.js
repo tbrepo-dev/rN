@@ -15,11 +15,12 @@ export const VEHICLES = {
   pickup: { name: 'Pickup', len: 2.6, wid: 1.3, max: 13, accel: 9, turn: 2.5, mass: 1, hp: 100, ram: 1 },
   tractor: { name: 'Tractor', len: 2.4, wid: 1.7, max: 6.5, accel: 4.5, turn: 1.9, mass: 1.7, hp: 170, ram: 1.4 },
   trash: { name: 'Trash truck', len: 3.8, wid: 1.8, max: 9.5, accel: 5.5, turn: 1.6, mass: 2.5, hp: 240, ram: 1.9 },
-  cop: { name: 'Cop car', len: 2.7, wid: 1.35, max: 12, accel: 10, turn: 2.7, mass: 1.1, hp: 90, ram: 1 },
+  cop: { name: 'Cop car', len: 2.7, wid: 1.35, max: 10.5, accel: 8, turn: 2.3, mass: 1.0, hp: 90, ram: 0.7 },
 };
 export const FOOT_SPEED = 3.6;
 export const MAX_STARS = 3;
-const BUST_TIME = 1.8;
+const BUST_TIME = 2.6; // seconds a cop has to sit on you
+const COP_GIVE_UP = 5; // seconds of being left far behind before a cop gives up
 
 const HINT_DIRS = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
 const SHOUTS = ['YEEHAW!', 'WATCH IT, CLETUS!', 'MY TRUCK!', 'DANG IT!', 'HEY NOW!', 'THAT AIN\'T YOURS!'];
@@ -271,10 +272,16 @@ function physics(L, v, dt) {
   const inp = v.inp;
   if (inp.gas) fwd = fwd < maxF ? Math.min(maxF, fwd + s.accel * dt) : fwd;
   if (inp.brake) {
-    if (fwd > 0.3) fwd = Math.max(0, fwd - s.accel * 2 * dt);
-    else fwd = Math.max(-maxF * 0.4, fwd - s.accel * 0.7 * dt);
+    // the brake stops you, going either way
+    if (fwd > 0) fwd = Math.max(0, fwd - s.accel * 2 * dt);
+    else fwd = Math.min(0, fwd + s.accel * 2 * dt);
   }
-  if (!inp.gas && !inp.brake) fwd *= Math.exp(-0.7 * dt);
+  if (inp.reverse) {
+    // reverse gear: brakes hard if you're still rolling forward, then backs up
+    if (fwd > 0.3) fwd = Math.max(0, fwd - s.accel * 2.2 * dt);
+    else fwd = Math.max(-maxF * 0.55, fwd - s.accel * 0.9 * dt);
+  }
+  if (!inp.gas && !inp.brake && !inp.reverse) fwd *= Math.exp(-0.7 * dt);
   if (fwd > maxF) fwd = Math.max(maxF, fwd - 9 * dt); // bog down in the rough
   lat *= Math.exp(-7 * dt);
   const turn = inp.steer * s.turn * clamp(Math.abs(fwd) / 3, 0, 1) * (fwd >= 0 ? 1 : -1);
@@ -439,7 +446,7 @@ function aiCivilian(g, v, dt) {
   let brake = false;
   if (v.reverseT > 0) {
     v.reverseT -= dt;
-    return { steer: -steer, gas: false, brake: true };
+    return { steer: -steer, gas: false, brake: false, reverse: true };
   }
   if (blockedAhead(D, L, v)) {
     gas = false;
@@ -558,7 +565,7 @@ function aiCop(g, v, dt) {
   const spd = speedOf(v);
   if (v.reverseT > 0) {
     v.reverseT -= dt;
-    return { steer: -1, gas: false, brake: true };
+    return { steer: -1, gas: false, brake: false, reverse: true };
   }
   const tgt = copTarget(g, v);
   const steer = steerTo(v, tgt.x, tgt.y, 2.6);
@@ -653,7 +660,7 @@ function spawnCop(g) {
   const P = D.player;
   const spots = L.roadPoints.filter((r) => {
     const d = Math.hypot(r.x - P.x, r.y - P.y);
-    return d > 28 && d < 50;
+    return d > 36 && d < 56;
   });
   const pool = spots.length ? spots : L.roadPoints;
   const r = pool[Math.floor(rnd(D) * pool.length)];
@@ -691,11 +698,11 @@ function updateCops(g, api, dt) {
   D.alert = Math.max(0, D.alert - dt);
   alertPatrols(g, api);
   const cops = D.vehicles.filter((v) => v.driver === 'cop' && !v.wreck);
-  const want = D.copsEnabled && stars(D) > 0 ? Math.min(4, stars(D) + 1) : 0;
+  const want = D.copsEnabled && stars(D) > 0 ? Math.min(3, stars(D)) : 0; // one cop per star
   D.copSpawnT -= dt;
   if (cops.length < want && D.copSpawnT <= 0) {
     spawnCop(g);
-    D.copSpawnT = 3.5;
+    D.copSpawnT = 4.5;
   }
   // every so often a cop just decides to chase you
   D.randCopT -= dt;
@@ -708,14 +715,22 @@ function updateCops(g, api, dt) {
     }
   }
   // the heat dies down when no cop is near
-  const near = cops.some((c) => dist(c, P) < 32);
-  D.heat = Math.max(0, D.heat - (near ? 0.03 : 0.16) * dt);
+  const near = cops.some((c) => dist(c, P) < 22);
+  D.heat = Math.max(0, D.heat - (near ? 0.04 : 0.4) * dt); // lose them and the heat drops fast
   // far-off cops go home
-  for (const c of cops) if (dist(c, P) > 80) c.hp = 0, (c.wreck = true, c.burn = 0.1);
+  // a cop left far behind gives up and goes home
+  for (const c of cops) {
+    c.lostT = dist(c, P) > 42 ? (c.lostT || 0) + dt : Math.max(0, (c.lostT || 0) - 2 * dt);
+    if (c.lostT > COP_GIVE_UP || dist(c, P) > 90) {
+      c.wreck = true;
+      c.burn = 0;
+      c.hp = 0;
+    }
+  }
   // busted: a cop right on top of you while you're not going anywhere
   const pv = playerVehicle(D);
   const slow = pv ? speedOf(pv) < 2.5 : true;
-  const caught = cops.some((c) => dist(c, P) < 2.8);
+  const caught = cops.some((c) => dist(c, P) < 2.3);
   if (caught && slow && D.drunk <= 0) D.bust += dt;
   else D.bust = Math.max(0, D.bust - 1.5 * dt);
   if (D.bust >= BUST_TIME) {
@@ -851,6 +866,7 @@ export function stepDrive(g, input, dt, api) {
   const steer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const gas = !!input.jump;
   const brake = !!input.throw;
+  const reverse = !!input.shield; // REV button
   // drunk driving: invincible, a bit faster, and the steering has a mind of its own
   const wasDrunk = D.drunk > 0;
   D.drunk = Math.max(0, D.drunk - dt);
@@ -861,7 +877,7 @@ export function stepDrive(g, input, dt, api) {
   // --- who is controlling what
   const pv = playerVehicle(D);
   if (pv) {
-    pv.inp = { steer: steerIn, gas, brake };
+    pv.inp = { steer: steerIn, gas, brake, reverse };
     pv.boost = D.drunk > 0 ? 1.12 : 1;
     if (D.drunk > 0) pv.hp = pv.maxHp; // nothing can touch you
   }
@@ -870,7 +886,7 @@ export function stepDrive(g, input, dt, api) {
   const vehicleNow = playerVehicle(D);
   if (!vehicleNow) {
     P.h += steerIn * 3.4 * dt;
-    const sp = gas ? FOOT_SPEED : brake ? -2 : 0;
+    const sp = gas ? FOOT_SPEED : brake || reverse ? -2 : 0;
     P.vx = Math.cos(P.h) * sp;
     P.vy = Math.sin(P.h) * sp;
     P.x += P.vx * dt;
