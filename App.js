@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Platform, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, Platform, Pressable, StyleSheet, AppState, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { createGame, createGameAt, step, STEP, SHINE_MAX, AMMO_MAX, GEAR, LEVEL_COUNT, continueGame, startPlaying, loadLevel, advanceScene, chooseScene, startScene } from './engine/game';
 import { Billy, Critter, Cob, Ray, Shot, Jug, OneUp, GearItem, Tile, Ground, Emoji, Booth, CastleGate, Fridge, Tequila, FlameBall, HellGate, gearEmoji } from './src/Sprites';
 import { SceneView, EndingView } from './src/Scenes';
 import { DriveView } from './src/Drive';
 import { levelForCode } from './engine/cheats';
-import { initAudio, play, toggleMute, isMuted, setMusicTheme } from './src/sound';
+import { initAudio, play, toggleMute, isMuted, setMusicTheme, pauseAudio } from './src/sound';
 
 
 const THEME = {
@@ -234,19 +234,33 @@ export default function App() {
     setScreen('play');
   };
 
-  // Secret level select: tap the title five times, then punch in a code
+  // Pause: freezes the game and brings up a menu
+  const [paused, setPausedState] = useState(false);
+  const pausedRef = useRef(false);
+  const setPaused = (p) => {
+    pausedRef.current = p;
+    setPausedState(p);
+    inputRef.current = { left: false, right: false, jump: false, throw: false, rush: false, shield: false };
+    latchRef.current = { jump: false, throw: false, rush: false };
+    pauseAudio(p);
+  };
+
+  // Secret level select: tap the title five times (or use the button), then punch in a code
   const [codeOpen, setCodeOpen] = useState(false);
   const [codeText, setCodeText] = useState('');
   const [codeMsg, setCodeMsg] = useState('');
   const tapsRef = useRef([]);
+  const openCode = () => {
+    setCodeText('');
+    setCodeMsg('Enter code');
+    setCodeOpen(true);
+  };
   const tapTitle = () => {
     const now = Date.now();
     tapsRef.current = [...tapsRef.current.filter((t) => now - t < 3000), now];
     if (tapsRef.current.length >= 5) {
       tapsRef.current = [];
-      setCodeText('');
-      setCodeMsg('Enter code');
-      setCodeOpen(true);
+      openCode();
     }
   };
   const pressDigit = (d) => {
@@ -257,6 +271,7 @@ export default function App() {
       const lvl = levelForCode(next);
       if (lvl) {
         setCodeOpen(false);
+        setPaused(false);
         start(lvl);
       } else {
         setCodeMsg('Wrong code!');
@@ -280,6 +295,11 @@ export default function App() {
     let last = null;
     let acc = 0;
     const tick = (now) => {
+      if (pausedRef.current) {
+        last = now;
+        raf = requestAnimationFrame(tick);
+        return;
+      }
       if (last === null) last = now;
       acc += Math.min((now - last) / 1000, 0.1);
       last = now;
@@ -305,6 +325,34 @@ export default function App() {
       if (e.key >= '0' && e.key <= '9') pressDigit(e.key);
       else if (e.key === 'Backspace') setCodeText((c) => c.slice(0, -1));
       else if (e.key === 'Escape') setCodeOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => {
+      if (st !== 'active' && screen === 'play') setPaused(true);
+    });
+    let onVis = null;
+    if (Platform.OS === 'web') {
+      onVis = () => document.hidden && screen === 'play' && setPaused(true);
+      document.addEventListener('visibilitychange', onVis);
+    }
+    return () => {
+      sub && sub.remove && sub.remove();
+      if (onVis) document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [screen]);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onKey = (e) => {
+      if (codeOpen || screen !== 'play') return;
+      if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') {
+        const m = gameRef.current.mode;
+        if (pausedRef.current) setPaused(false);
+        else if (m === 'playing') setPaused(true);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -531,6 +579,9 @@ export default function App() {
           <Text style={styles.sub}>Collect {level.goalJugs} jugs of shine and get Billy to his truck, y'all!</Text>
           <Text style={styles.hint}>🌽 throw corn cobs  •  jump twice for a double jump{'\n'}fill the SHINE meter, then hit RUSH to be invincible, fast, and fire triple cobs</Text>
           <Text style={styles.tap}>Tap to start</Text>
+          <Pressable style={styles.codeBtn} onPress={openCode} hitSlop={10}>
+            <Text style={styles.codeBtnText}>🔑 ENTER CODE</Text>
+          </Pressable>
         </Pressable>
       )}
       {screen === 'play' && g.mode === 'intro' && (
@@ -556,6 +607,9 @@ export default function App() {
           <Text style={styles.title} onPress={tapTitle}>GAME OVER</Text>
           <Text style={styles.sub}>Score {g.score}</Text>
           <Text style={styles.tap}>Tap to try again</Text>
+          <Pressable style={styles.codeBtn} onPress={openCode} hitSlop={10}>
+            <Text style={styles.codeBtnText}>🔑 ENTER CODE</Text>
+          </Pressable>
         </Pressable>
       )}
       {screen === 'play' && g.mode === 'won' && (
@@ -576,6 +630,48 @@ export default function App() {
           {g.levelNo === 3 && <Text style={styles.hint}>Billy now wears full knight-alien armor with a ray gun, sword and shield.</Text>}
           <Text style={styles.tap}>Tap to continue</Text>
         </Pressable>
+      )}
+      {screen === 'play' && g.mode === 'playing' && !paused && (
+        <Pressable style={styles.pauseBtn} onPress={() => setPaused(true)} hitSlop={10}>
+          <Text style={styles.pauseIcon}>⏸</Text>
+        </Pressable>
+      )}
+      {paused && (
+        <View style={styles.pauseWrap}>
+          <View style={styles.pauseBox}>
+            <Text style={styles.pauseTitle}>PAUSED</Text>
+            <Text style={styles.pauseSub}>Level {g.levelNo}: {g.level.name}</Text>
+            <Pressable style={[styles.menuBtn, { backgroundColor: '#3f9a4f' }]} onPress={() => setPaused(false)}>
+              <Text style={styles.menuText}>▶  RESUME</Text>
+            </Pressable>
+            <Pressable style={styles.menuBtn} onPress={() => { toggleMute(); setFrame((f) => f + 1); }}>
+              <Text style={styles.menuText}>{isMuted() ? '🔇  SOUND: OFF' : '🔊  SOUND: ON'}</Text>
+            </Pressable>
+            <Pressable style={styles.menuBtn} onPress={openCode}>
+              <Text style={styles.menuText}>🔑  ENTER CODE</Text>
+            </Pressable>
+            <Pressable
+              style={styles.menuBtn}
+              onPress={() => {
+                loadLevel(gameRef.current, gameRef.current.levelNo);
+                setPaused(false);
+              }}
+            >
+              <Text style={styles.menuText}>↻  RESTART LEVEL</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.menuBtn, { backgroundColor: '#8a2a2a' }]}
+              onPress={() => {
+                gameRef.current = createGame();
+                gameRef.current.viewW = viewW;
+                setPaused(false);
+                setScreen('title');
+              }}
+            >
+              <Text style={styles.menuText}>⌂  QUIT TO TITLE</Text>
+            </Pressable>
+          </View>
+        </View>
       )}
       {codeOpen && (
         <View style={styles.codeWrap}>
@@ -627,6 +723,16 @@ const styles = StyleSheet.create({
   btnText: { color: '#fff', fontSize: 22, fontWeight: '900' },
   sign: { position: 'absolute', fontWeight: '900', color: '#fff', ...shadow },
   mute: { position: 'absolute', top: 38, right: 44, opacity: 0.8 },
+  pauseBtn: { position: 'absolute', top: 36, right: 82, width: 34, height: 30, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', zIndex: 30 },
+  pauseIcon: { color: '#fff', fontSize: 16, fontWeight: '900' },
+  pauseWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(10,10,20,0.78)', alignItems: 'center', justifyContent: 'center', zIndex: 40 },
+  pauseBox: { alignItems: 'center', gap: 7, paddingVertical: 10, minWidth: 250 },
+  pauseTitle: { color: '#f6d55c', fontSize: 34, fontWeight: '900', letterSpacing: 4, ...shadow },
+  pauseSub: { color: '#fff', fontSize: 13, marginBottom: 4, ...shadow },
+  menuBtn: { width: 240, paddingVertical: 8, borderRadius: 12, backgroundColor: '#34344a', alignItems: 'center', borderWidth: 2, borderColor: 'rgba(255,255,255,0.25)' },
+  menuText: { color: '#fff', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
+  codeBtn: { marginTop: 14, paddingHorizontal: 16, paddingVertical: 6, borderRadius: 14, borderWidth: 2, borderColor: '#9be37a', backgroundColor: 'rgba(0,0,0,0.35)' },
+  codeBtnText: { color: '#9be37a', fontSize: 14, fontWeight: '900', letterSpacing: 2 },
   codeWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.82)', alignItems: 'center', justifyContent: 'center', zIndex: 50 },
   codeBox: { alignItems: 'center', backgroundColor: '#1d1d2a', borderRadius: 18, borderWidth: 2, borderColor: '#9be37a', paddingVertical: 12, paddingHorizontal: 22 },
   codeTitle: { color: '#9be37a', fontWeight: '900', fontSize: 16, letterSpacing: 3 },

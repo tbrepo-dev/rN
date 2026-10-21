@@ -21,9 +21,13 @@ npm test              # engine tests (physics, stomping, crates, level is beatab
 - Bump barrels from below: a collectible pops out to the side (chase it down!), a glowing **shine** jug makes Billy big (one free hit), gear for your loadout, or a swarm.
 - Keyboard (web): arrows/WASD move, space/Z jump, X fire, C rush, V shield.
 
+## Pause
+
+Tap the **⏸** button (top right) or press **Esc / P** on a keyboard. The game also pauses by itself if you switch apps. The menu has Resume, Sound on/off, Enter Code, Restart Level and Quit to Title.
+
 ## Secret level select
 
-On the title screen (or the game-over screen), **tap the title five times** to open the level-select keypad, then enter a code. You start with the gear you'd normally have found by then.
+On the title screen, the game-over screen or the pause menu, tap **🔑 ENTER CODE** (or tap the title five times) to open the level-select keypad, then enter a code. You start with the gear you'd normally have found by then.
 
 | Code | Level |
 | --- | --- |

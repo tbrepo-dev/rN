@@ -193,3 +193,12 @@ export function play(name) {
     } catch (e) {}
   }
 }
+
+// Pausing the game pauses the music too
+export function pauseAudio(paused) {
+  if (!ctx) return;
+  try {
+    if (paused) ctx.suspend();
+    else ctx.resume();
+  } catch (e) {}
+}
