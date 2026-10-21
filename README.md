@@ -39,6 +39,7 @@ On the title screen, the game-over screen or the pause menu, tap **🔑 ENTER CO
 | 6660 | 6. Hell |
 | 4200 | 7. Big Al's Liquor Store |
 | 1337 | 8. The Hive |
+| 2718 | The secret Egg Chamber (inside the Hive; no bazooka until you crack the Queen Egg) |
 
 On the web you can also type the code on a keyboard.
 

@@ -8,6 +8,7 @@ export const LEVEL_CODES = {
   6660: 6, // Hell
   4200: 7, // Big Al's Liquor Store
   1337: 8, // The Hive
+  2718: 9, // The Egg Chamber (the secret level inside the Hive)
 };
 
 export const levelForCode = (code) => LEVEL_CODES[String(code)] ?? null;

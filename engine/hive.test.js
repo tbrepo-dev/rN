@@ -438,3 +438,12 @@ test('smoke: every creature in the Hive and Egg Chamber can be woken up and foug
     }
   }
 });
+
+test('code 2718 starts in the Egg Chamber', () => {
+  assert.equal(levelForCode('2718'), 9);
+  const g = createGameAt(9);
+  assert.equal(g.level.secret, true);
+  startPlaying(g);
+  run(g, none, 1);
+  assert.equal(g.mode, 'playing');
+});

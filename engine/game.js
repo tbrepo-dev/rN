@@ -113,7 +113,8 @@ const ENEMY_KINDS = {
 };
 
 // Starting at a later level (the secret codes) hands Billy what he would have found on the way
-export function createGameAt(n) {
+export function createGameAt(code) {
+  const n = Math.min(code, LEVEL_COUNT);
   const g = createGame({ level: n });
   if (n >= 3) ['raygun', 'antenna', 'vest'].forEach((k) => (g.gear[k] = true));
   if (n >= 4) ['sword', 'shield', 'knightHelm', 'plate'].forEach((k) => (g.gear[k] = true));
@@ -121,6 +122,10 @@ export function createGameAt(n) {
   if (n >= 8) g.lives = 5;
   if (n > 1) {
     respawn(g);
+    g.mode = 'intro';
+  }
+  if (code === LEVEL_COUNT + 1) {
+    enterSecret(g, 'egg');
     g.mode = 'intro';
   }
   return g;
