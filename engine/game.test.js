@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, step, STEP, SMALL_H, loadLevel, nextLevel, startPlaying, equip, armorMax, LEVEL_COUNT, startScene, advanceScene, chooseScene, continueGame, addLife } from './game.js';
 import { SCENES } from './story.js';
+import { LEVEL_CODES, levelForCode } from './cheats.js';
+import { createGameAt } from './game.js';
 import { GROUND_Y, CRATE, USED } from './level.js';
 
 const none = { left: false, right: false, jump: false };
@@ -1444,7 +1446,7 @@ test('crimes bring cops, who chase and ram; the heat fades when you escape', () 
 test('cops occasionally decide to chase you even if you have done nothing', () => {
   const g = createGame({ level: 7 });
   assert.equal(stars(drive(g)), 0);
-  run(g, none, 80);
+  run(g, none, 30);
   assert.ok(g.events.includes('siren'), 'a cop showed up on his own');
 });
 
@@ -1635,4 +1637,220 @@ test("the whole hunt can be done: a bot follows the clues across the map and fin
   assert.equal(g.mode, 'scene', `bot ended in ${g.mode} at ${P.x.toFixed(1)},${P.y.toFixed(1)} t=${t.toFixed(0)}s stage=${D.stage} hp=${playerVehicle(D)?.hp}`);
   assert.equal(g.scene.id, 'bigAl');
   assert.ok(t > 40, `even flat out in a straight line it takes ${t.toFixed(0)}s of driving`);
+});
+
+// ---- Secret level codes ----------------------------------------------------------
+test('every level has its own secret code, and bad codes do nothing', () => {
+  assert.equal(Object.keys(LEVEL_CODES).length, LEVEL_COUNT);
+  assert.deepEqual(Object.values(LEVEL_CODES).sort(), [1, 2, 3, 4, 5, 6, 7]);
+  for (const [code, lvl] of Object.entries(LEVEL_CODES)) assert.equal(levelForCode(code), lvl);
+  assert.equal(levelForCode('0000'), null);
+  assert.equal(levelForCode('abcd'), null);
+  assert.equal(levelForCode(''), null);
+});
+
+test('jumping to a level starts it with the gear Billy would have found on the way', () => {
+  const kit = (n) => Object.keys(createGameAt(n).gear).filter(Boolean).sort();
+  assert.deepEqual(kit(1), []);
+  assert.deepEqual(kit(2), []);
+  assert.deepEqual(kit(3), ['antenna', 'raygun', 'vest']);
+  assert.deepEqual(kit(4), ['antenna', 'knightHelm', 'plate', 'raygun', 'shield', 'sword', 'vest']);
+  for (let n = 1; n <= LEVEL_COUNT; n++) {
+    const g = createGameAt(n);
+    assert.equal(g.levelNo, n);
+    assert.equal(g.mode, n === 1 ? 'playing' : 'intro', `level ${n} intro`);
+    assert.equal(g.lives, 3);
+    startPlaying(g);
+    run(g, none, 1);
+    assert.ok(g.mode === 'playing' || g.mode === 'dying', `level ${n} runs: ${g.mode}`);
+  }
+  const g7 = createGameAt(7);
+  assert.equal(g7.level.kind, 'drive');
+  assert.ok(g7.player.armor >= 3, 'armor from the knight-alien gear');
+});
+
+// ---- Drunk driving ---------------------------------------------------------------
+const drinkBeer = (g) => {
+  const beer = drive(g).pickups.find((p) => p.kind === 'beer' && !p.taken);
+  Object.assign(drive(g).player, { x: beer.x, y: beer.y });
+  step(g, none);
+  return beer;
+};
+
+test('there are beers all over town, and every one is reachable', () => {
+  const L = buildTown();
+  const beers = L.pickups.filter((p) => p.kind === 'beer');
+  assert.ok(beers.length >= 18, `${beers.length} beers`);
+  for (const b of beers) assert.ok(!isBlocked(L, b.x, b.y), `beer at ${b.x.toFixed(0)},${b.y.toFixed(0)} is not inside something`);
+});
+
+test('drinking a beer starts drunk driving: 12 seconds, stacking up to 20', () => {
+  const g = town();
+  const D = drive(g);
+  drinkBeer(g);
+  assert.ok(D.drunk > 11.5 && D.drunk <= 12, `drunk ${D.drunk}`);
+  assert.ok(/DRUNK/.test(g.toast.text));
+  drinkBeer(g);
+  assert.ok(D.drunk > 20 - 0.1 && D.drunk <= 20, 'capped at 20s');
+  run(g, none, 21);
+  assert.equal(D.drunk, 0);
+  assert.ok(/Sobering/.test(g.toast.text));
+});
+
+test('while drunk you are invincible: crashes do not scratch the truck, and it never explodes', () => {
+  const g = town();
+  const v = emptyVehicle(g);
+  const q = g.level.buildings.find((b) => b.kind === 'quarry');
+  drinkBeer(g);
+  put(g, v, q.x + q.w / 2, q.y + q.h + 8, -Math.PI / 2, 13);
+  intoVehicle(g, v);
+  v.hp = 10;
+  for (let i = 0; i < 90; i++) step(g, { ...none, jump: true });
+  assert.ok(!v.wreck, 'did not blow up');
+  assert.equal(v.hp, v.maxHp, 'not a scratch');
+});
+
+test('drunk drivers are not busted and the cops cannot hurt them', () => {
+  const g = createGame({ level: 7 });
+  const D = drive(g);
+  drinkBeer(g);
+  D.heat = 1.5;
+  run(g, none, 3);
+  const cop = D.vehicles.find((v) => v.driver === 'cop');
+  assert.ok(cop);
+  for (let i = 0; i < 60 * 4 && D.drunk > 1; i++) {
+    cop.vx = cop.vy = 0;
+    put(g, cop, D.player.x + 1.5, D.player.y, Math.PI, 0);
+    D.heat = Math.max(D.heat, 1.5);
+    step(g, none);
+  }
+  assert.equal(g.mode, 'playing', 'no BUSTED while drunk');
+  assert.equal(D.bust, 0);
+});
+
+test('drunk rams hit twice as hard, and the steering wobbles', () => {
+  const damageDealt = (drunk) => {
+    const g = createGame({ level: 7 });
+    const D = drive(g);
+    const civ = D.vehicles.find((v) => v.driver === 'civ' && v.type === 'pickup');
+    const me = D.vehicles.find((v) => v.type === 'pickup' && !v.driver);
+    put(g, civ, 90, ROAD_Y - 1.4, 0, 0);
+    civ.route = null;
+    civ.inp = { steer: 0, gas: false, brake: true };
+    put(g, me, 86.6, ROAD_Y - 1.4, 0, 8); // already nearly touching, so the wobble cannot matter
+    intoVehicle(g, me);
+    D.drunk = drunk ? 12 : 0;
+    D.player.invuln = 99;
+    for (let i = 0; i < 90 && civ.hp === civ.maxHp; i++) step(g, { ...none, jump: true });
+    for (let i = 0; i < 6; i++) step(g, { ...none, jump: true });
+    return civ.maxHp - civ.hp;
+  };
+  const sober = damageDealt(false);
+  const drunk = damageDealt(true);
+  assert.ok(drunk > sober * 1.5, `sober ${sober.toFixed(1)}, drunk ${drunk.toFixed(1)}`);
+  // no hands on the wheel: a sober truck goes straight, a drunk one drifts
+  const heading = (isDrunk) => {
+    const g = town();
+    const v = emptyVehicle(g);
+    put(g, v, 62, ROAD_Y, 0, 9);
+    intoVehicle(g, v);
+    drive(g).drunk = isDrunk ? 12 : 0;
+    let spread = 0;
+    for (let i = 0; i < 120; i++) {
+      step(g, { ...none, jump: true });
+      spread = Math.max(spread, Math.abs(v.h));
+    }
+    return spread;
+  };
+  assert.ok(heading(false) < 0.01, 'sober: straight');
+  assert.ok(heading(true) > 0.1, 'drunk: wobbles');
+});
+
+// ---- Cops and traffic ------------------------------------------------------------
+test('carjacking is worth a whole star right away, and cops turn up within a few seconds', () => {
+  const g = createGame({ level: 7 });
+  const D = drive(g);
+  const civ = D.vehicles.find((v) => v.driver === 'civ');
+  put(g, civ, 70, ROAD_Y - 1.4, 0, 0);
+  civ.route = null;
+  civ.inp = { steer: 0, gas: false, brake: true };
+  Object.assign(D.player, { x: civ.x + 2.2, y: civ.y + 1.5 });
+  step(g, { ...none, rush: true });
+  assert.ok(stars(D) >= 1, `stars ${stars(D)} (heat ${D.heat.toFixed(2)})`);
+  run(g, none, 5);
+  assert.ok(D.vehicles.some((v) => v.driver === 'cop' && !v.wreck), 'a cop is after you');
+  assert.ok(g.events.includes('siren'));
+});
+
+test('patrol cops are already cruising the roads when the level starts', () => {
+  const g = createGame({ level: 7 });
+  const patrols = drive(g).vehicles.filter((v) => v.driver === 'patrol');
+  assert.ok(patrols.length >= 5, `${patrols.length} patrol cars`);
+  assert.ok(patrols.every((p) => p.type === 'cop' && p.route));
+  run(g, none, 5);
+  assert.ok(patrols.some((p) => Math.hypot(p.vx, p.vy) > 1), 'and they are moving');
+});
+
+test('speeding past a patrol cop gets you chased (a star) and he cannot be stolen', () => {
+  const g = createGame({ level: 7 });
+  const D = drive(g);
+  const patrol = D.vehicles.find((v) => v.driver === 'patrol');
+  const v = emptyVehicle(g);
+  put(g, v, patrol.x - 12, patrol.y, 0, 12);
+  intoVehicle(g, v);
+  v.vx = Math.cos(v.h) * 12;
+  v.vy = Math.sin(v.h) * 12;
+  D.player.x = v.x;
+  D.player.y = v.y;
+  step(g, { ...none, jump: true });
+  assert.equal(patrol.driver, 'cop', 'the patrol turned into a chase');
+  assert.ok(stars(D) >= 1);
+  // a driving-along-normally pickup does not set them off
+  const g2 = createGame({ level: 7 });
+  const p2 = drive(g2).vehicles.find((x) => x.driver === 'patrol');
+  const v2 = emptyVehicle(g2);
+  put(g2, v2, p2.x - 12, p2.y, 0, 6);
+  intoVehicle(g2, v2);
+  drive(g2).player.x = v2.x;
+  drive(g2).player.y = v2.y;
+  step(g2, { ...none });
+  assert.equal(p2.driver, 'patrol', 'normal driving is fine');
+  // locked
+  const g3 = createGame({ level: 7 });
+  const p3 = drive(g3).vehicles.find((x) => x.driver === 'patrol');
+  Object.assign(drive(g3).player, { x: p3.x + 2.4, y: p3.y + 0.8, invuln: 99 });
+  step(g3, none);
+  assert.equal(drive(g3).prompt, 'LOCKED');
+});
+
+test('crashing into a patrol car sets it off too', () => {
+  const g = createGame({ level: 7 });
+  const D = drive(g);
+  const patrol = D.vehicles.find((v) => v.driver === 'patrol');
+  const v = emptyVehicle(g);
+  put(g, patrol, patrol.x, patrol.y, patrol.h, 0);
+  patrol.route = null; // parked in the road for the test
+  patrol.inp = { steer: 0, gas: false, brake: true };
+  put(g, v, patrol.x - 8, patrol.y, 0, 9);
+  v.h = Math.atan2(0, 1);
+  intoVehicle(g, v);
+  D.player.invuln = 99;
+  patrol.h = Math.PI;
+  for (let i = 0; i < 90; i++) {
+    patrol.vx = patrol.vy = 0;
+    step(g, { ...none, jump: true });
+  }
+  assert.ok(patrol.driver === 'cop' || patrol.wreck, 'the cop went after you');
+  assert.ok(stars(D) >= 1);
+});
+
+test('the roads are busy: lots of cars to crash into', () => {
+  const g = createGame({ level: 7 });
+  const vs = drive(g).vehicles;
+  const civs = vs.filter((v) => v.driver === 'civ');
+  const parked = vs.filter((v) => !v.driver);
+  assert.ok(civs.length >= 28, `${civs.length} cars on the road`);
+  assert.ok(parked.length >= 30, `${parked.length} parked cars`);
+  assert.ok(vs.length >= 70, `${vs.length} vehicles in total`);
+  for (const k of ['pickup', 'tractor', 'trash']) assert.ok(vs.filter((v) => v.type === k).length >= 6, `${k}s`);
 });

@@ -287,10 +287,40 @@ export function buildTown() {
   for (let j = 1; j <= 3; j++) {
     for (let i = 1; i <= 4; i++) {
       const route = loop(XS[i], YS[j], XS[i + 1], YS[j + 1]);
-      const count = (i + j) % 2 ? 2 : 1;
-      for (let c = 0; c < count; c++) traffic.push({ type: types[n % types.length], color: colors[n % colors.length], route, start: c * 4 });
+      const count = (i + j) % 2 ? 3 : 2;
+      for (let c = 0; c < count; c++) traffic.push({ type: types[(n + c) % types.length], color: colors[(n + c) % colors.length], route, start: (c * 3) % 8 });
       n++;
     }
+  }
+
+  // --- cops on patrol: they cruise the blocks until you give them a reason
+  const patrols = [];
+  [[1, 3], [2, 3], [2, 2], [3, 3], [1, 1], [4, 2]].forEach(([i, j], k) => {
+    patrols.push({ route: loop(XS[i], YS[j], XS[i + 1], YS[j + 1], 2.2), start: (k * 3) % 8 });
+  });
+
+  // --- lots more parked rides along the road shoulders, ready to wreck
+  const shoulder = [];
+  for (let k = 0; k < 26; k++) {
+    const onH = k % 2 === 0;
+    const road = onH ? H_ROADS[k % H_ROADS.length] : V_ROADS[k % V_ROADS.length];
+    const along = 20 + rnd() * 260;
+    const side = rnd() < 0.5 ? -4.6 : 4.6;
+    const x = onH ? along : road + side;
+    const y = onH ? road + side : Math.min(185, along * 0.65 + 10);
+    const type = ['pickup', 'pickup', 'tractor', 'trash'][Math.floor(rnd() * 4)];
+    shoulder.push({ type, ...freeSpot(x, y, 2.4), h: onH ? (side < 0 ? 0 : Math.PI) : side < 0 ? Math.PI / 2 : -Math.PI / 2, color: colors[Math.floor(rnd() * colors.length)] });
+  }
+  shoulder.forEach((p) => parked.push(p));
+
+  // --- beers: grab one for a little drunk driving (invincible, wobbly)
+  for (let k = 0; k < 20; k++) {
+    const onH = k % 2 === 0;
+    const road = onH ? H_ROADS[(k >> 1) % H_ROADS.length] : V_ROADS[(k >> 1) % V_ROADS.length];
+    const along = 25 + rnd() * 250;
+    const x = onH ? along : road;
+    const y = onH ? road : Math.min(180, 12 + ((along - 25) / 250) * 170);
+    pickups.push({ x, y: y + (onH ? (k % 4 < 2 ? 1.4 : -1.4) : 0), kind: 'beer' });
   }
 
   // --- farmers on foot, standing around outside buildings
@@ -359,6 +389,7 @@ export function buildTown() {
     parked,
     traffic,
     peds,
+    patrols,
     fakeStores,
     roadPoints,
     store,

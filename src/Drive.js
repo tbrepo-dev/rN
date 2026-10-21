@@ -272,7 +272,7 @@ function Wheel({ x, y, w, h }) {
   return <View style={{ position: 'absolute', left: x, top: y, width: w, height: h, backgroundColor: '#15171a', borderRadius: Math.min(w, h) * 0.3 }} />;
 }
 
-export function VehicleSprite({ v, ps, t, mine }) {
+export function VehicleSprite({ v, ps, t, mine, drunk }) {
   const s = VEHICLES[v.type];
   const L = s.len * ps;
   const W = s.wid * ps;
@@ -281,11 +281,12 @@ export function VehicleSprite({ v, ps, t, mine }) {
   const body = dead ? '#2a2523' : v.color;
   const lit = dead ? '#1a1615' : 'rgba(255,255,255,0.2)';
   const driver = dead ? null : mine ? '#e8c35a' : v.driver === 'civ' ? '#8a5a2c' : v.driver === 'cop' ? '#1f3a7a' : null;
-  const lights = v.type === 'cop' && !dead;
+  const lights = v.type === 'cop' && !dead && v.driver !== 'patrol';
   const flash = Math.floor(t * 8) % 2 === 0;
   return (
     <View style={{ position: 'absolute', left: v.x * ps - L / 2, top: v.y * ps - W / 2, width: L, height: W, transform: [{ rotate: `${v.h}rad` }] }}>
       <View style={{ position: 'absolute', left: 3, top: 4, width: L, height: W, borderRadius: ps * 0.3, backgroundColor: 'rgba(0,0,0,0.28)' }} />
+      {drunk && <View style={{ position: 'absolute', left: -ps * 0.5, top: -ps * 0.5, width: L + ps, height: W + ps, borderRadius: ps, backgroundColor: 'rgba(255,200,40,0.28)', borderWidth: 3, borderColor: `rgba(255,${180 + Math.floor(70 * Math.sin(t * 12))},40,0.9)` }} />}
       {v.type === 'tractor' ? (
         <>
           <Wheel x={L * 0.02} y={-W * 0.04} w={L * 0.36} h={W * 0.3} />
@@ -402,8 +403,10 @@ export function DriveView({ g, width, height }) {
   const ps = height / 14;
   const t = D.time;
   const pv = playerVehicle(D);
-  const ox = width / 2 - D.cam.x * ps;
-  const oy = height / 2 - D.cam.y * ps;
+  const drunk = D.drunk;
+  const sway = drunk > 0 ? Math.min(1, drunk / 2) : 0;
+  const ox = width / 2 - D.cam.x * ps + Math.sin(t * 1.9) * 7 * sway;
+  const oy = height / 2 - D.cam.y * ps + Math.cos(t * 1.4) * 5 * sway;
   const inView = (x, y, m = 4) => Math.abs(x - D.cam.x) < width / ps / 2 + m && Math.abs(y - D.cam.y) < height / ps / 2 + m;
   const viewW = width / ps;
   const viewH = height / ps;
@@ -421,10 +424,17 @@ export function DriveView({ g, width, height }) {
     : 'Follow the dirt road into the woods...';
   return (
     <>
-      <View style={{ position: 'absolute', left: ox, top: oy, width: L.w * ps, height: L.h * ps }} pointerEvents="none">
+      <View style={{ position: 'absolute', left: ox, top: oy, width: L.w * ps, height: L.h * ps, transform: sway ? [{ rotate: `${Math.sin(t * 1.1) * 0.018 * sway}rad` }] : undefined }} pointerEvents="none">
         <StaticTown level={L} ps={ps} keys={chunkKeys} />
         {D.pickups.map((pk, i) =>
-          pk.taken || !inView(pk.x, pk.y) ? null : pk.kind === 'life' ? <OneUp key={`k${i}`} x={pk.x - 0.5} y={pk.y - 0.5} ts={ps} t={t} /> : <Jug key={`k${i}`} x={pk.x - 0.5} y={pk.y - 0.5} ts={ps} t={t} />
+          pk.taken || !inView(pk.x, pk.y) ? null : pk.kind === 'life' ? <OneUp key={`k${i}`} x={pk.x - 0.5} y={pk.y - 0.5} ts={ps} t={t} /> : pk.kind === 'beer' ? (
+            <View key={`k${i}`} style={{ position: 'absolute', left: (pk.x - 0.9) * ps, top: (pk.y - 0.9) * ps, width: ps * 1.8, height: ps * 1.8, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ position: 'absolute', width: ps * 1.6, height: ps * 1.6, borderRadius: ps, backgroundColor: 'rgba(255,200,40,0.35)', opacity: 0.6 + 0.4 * Math.sin(t * 6 + pk.x) }} />
+              <Text style={{ fontSize: ps * 1.1, transform: [{ rotate: `${Math.sin(t * 4 + pk.y) * 12}deg` }] }}>🍺</Text>
+            </View>
+          ) : (
+            <Jug key={`k${i}`} x={pk.x - 0.5} y={pk.y - 0.5} ts={ps} t={t} />
+          )
         )}
         {D.peds.map((p) =>
           !inView(p.x, p.y) ? null : (
@@ -434,7 +444,8 @@ export function DriveView({ g, width, height }) {
             </View>
           )
         )}
-        {D.vehicles.map((v) => (inView(v.x, v.y, 6) ? <VehicleSprite key={v.id} v={v} ps={ps} t={t} mine={v.driver === 'player'} /> : null))}
+        {D.vehicles.map((v) => (inView(v.x, v.y, 6) ? <VehicleSprite key={v.id} v={v} ps={ps} t={t} mine={v.driver === 'player'} drunk={v.driver === 'player' && drunk > 0} /> : null))}
+        {!pv && drunk > 0 && <Text style={{ position: 'absolute', left: P.x * ps - ps * 0.8, top: P.y * ps - ps * 1.4, fontSize: ps * 1.2 }}>✨</Text>}
         {!pv && <BillyTop P={P} ps={ps} t={t} gear={g.gear} />}
         {D.effects.map((e, i) =>
           e.kind === 'text' ? (
@@ -462,6 +473,15 @@ export function DriveView({ g, width, height }) {
           </View>
         )}
       </View>
+      {drunk > 0 && <View style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(255,190,40,${0.1 + 0.05 * Math.sin(t * 3)})` }]} pointerEvents="none" />}
+      {drunk > 0 && (
+        <View style={styles.drunk} pointerEvents="none">
+          <Text style={styles.drunkText}>🍺 DRUNK DRIVING! INVINCIBLE {Math.ceil(drunk)}s</Text>
+          <View style={styles.hpTrack}>
+            <View style={[styles.hpFill, { width: `${Math.min(1, drunk / 20) * 100}%`, backgroundColor: '#ffb020' }]} />
+          </View>
+        </View>
+      )}
       <View style={styles.objective} pointerEvents="none">
         <Text style={styles.objText}>{objective}</Text>
         {D.hint && <Text style={styles.hintText}>{D.hint.text}</Text>}
@@ -490,6 +510,8 @@ const styles = StyleSheet.create({
   ride: { fontSize: 12, fontWeight: '900', color: '#fff', letterSpacing: 1, marginTop: 2, ...shadow },
   hpTrack: { width: 110, height: 8, borderRadius: 4, backgroundColor: 'rgba(0,0,0,0.55)', borderWidth: 2, borderColor: '#fff', overflow: 'hidden', marginTop: 2 },
   hpFill: { height: '100%' },
+  drunk: { position: 'absolute', left: 0, right: 0, bottom: 8, alignItems: 'center' },
+  drunkText: { fontSize: 16, fontWeight: '900', color: '#ffd23f', letterSpacing: 1, ...shadow },
   objective: { position: 'absolute', top: 36, left: 0, right: 0, alignItems: 'center' },
   objText: { fontSize: 14, fontWeight: '900', color: '#fff', backgroundColor: 'rgba(20,20,30,0.65)', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, overflow: 'hidden' },
   hintText: { marginTop: 6, fontSize: 14, fontWeight: '800', color: '#222', backgroundColor: '#ffe45e', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 12, overflow: 'hidden', maxWidth: 420, textAlign: 'center' },

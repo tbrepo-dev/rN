@@ -157,7 +157,7 @@ function addVehicle(D, type, x, y, h, opts = {}) {
     hp: s.hp,
     maxHp: s.hp,
     color: opts.color || '#b5472a',
-    driver: opts.driver || null, // null (empty) | 'player' | 'civ' | 'cop'
+    driver: opts.driver || null, // null (empty) | 'player' | 'civ' | 'cop' (chasing) | 'patrol' (cruising)
     wreck: false,
     burn: 0,
     route: opts.route || null,
@@ -191,7 +191,9 @@ export function createDrive(L, { traffic = true, cops = true, respawn = null } =
     heat: 0,
     copsEnabled: cops,
     copSpawnT: 2,
-    randCopT: 38,
+    randCopT: 18,
+    drunk: 0, // seconds of invincible drunk driving left
+    alert: 0,
     bust: 0,
     found: false,
     stage: respawn?.stage ?? 0, // how far along the treasure hunt for Big Al's you are
@@ -223,6 +225,13 @@ export function createDrive(L, { traffic = true, cops = true, respawn = null } =
       addVehicle(D, t.type, a.x, a.y, Math.atan2(b.y - a.y, b.x - a.x), { color: t.color, driver: 'civ', route: t.route, wp: (t.start + 1) % t.route.length, jitter: (i % 3) / 3 });
     });
   }
+  if (traffic) {
+    for (const p of L.patrols || []) {
+      const a = p.route[p.start % p.route.length];
+      const b = p.route[(p.start + 1) % p.route.length];
+      addVehicle(D, 'cop', a.x, a.y, Math.atan2(b.y - a.y, b.x - a.x), { driver: 'patrol', color: '#f2f4f8', route: p.route, wp: (p.start + 1) % p.route.length });
+    }
+  }
   L.peds.forEach((p) => addPed(D, p.x, p.y));
   D.cam = { x: start.x, y: start.y };
   return D;
@@ -253,11 +262,12 @@ function physics(L, v, dt) {
   const s = VEHICLES[v.type];
   const surf = surfaceAt(L, v.x, v.y);
   const mult = surf === 1 ? 1 : surf === 2 ? 0.9 : surf === 3 ? 0.55 : 0.7;
+  const boost = v.boost || 1;
   const c = Math.cos(v.h);
   const sn = Math.sin(v.h);
   let fwd = v.vx * c + v.vy * sn;
   let lat = -v.vx * sn + v.vy * c;
-  const maxF = s.max * mult;
+  const maxF = s.max * mult * boost;
   const inp = v.inp;
   if (inp.gas) fwd = fwd < maxF ? Math.min(maxF, fwd + s.accel * dt) : fwd;
   if (inp.brake) {
@@ -290,6 +300,7 @@ function bounce(v, nx, ny, e = 0.25) {
 function damageVehicle(g, api, v, dmg, src) {
   if (v.wreck || dmg <= 0) return;
   const D = g.drive;
+  if (v.driver === 'player' && D.drunk > 0) return; // drunk and untouchable
   v.hp -= dmg;
   if (src) v.lastHitBy = src;
   if (v.hp <= 0) explode(g, api, v);
@@ -330,7 +341,7 @@ function explode(g, api, v) {
   v.hp = 0;
   const wasPlayer = v.driver === 'player';
   const wasCiv = v.driver === 'civ';
-  const wasCop = v.driver === 'cop';
+  const wasCop = v.driver === 'cop' || v.driver === 'patrol';
   boom(D, v.x, v.y, 1.6);
   api.emit('boom');
   if (wasPlayer) {
@@ -376,7 +387,7 @@ function explode(g, api, v) {
 
 function hurtPlayer(g, api) {
   const P = g.drive.player;
-  if (P.invuln > 0) return;
+  if (P.invuln > 0 || g.drive.drunk > 0) return;
   P.invuln = 1.4;
   api.hurt();
 }
@@ -651,9 +662,34 @@ function spawnCop(g) {
   return v;
 }
 
+// Patrol cops chase when you're wanted, speeding nearby, or just caused a scene
+function alertPatrols(g, api) {
+  const D = g.drive;
+  const P = D.player;
+  const pv = playerVehicle(D);
+  const spd = pv ? speedOf(pv) : 0;
+  for (const v of D.vehicles) {
+    if (v.driver !== 'patrol' || v.wreck) continue;
+    const d = dist(v, P);
+    const wanted = stars(D) > 0 && d < 70;
+    const speeding = spd > 10.5 && d < 22;
+    const saw = (D.alert > 0 || v.panic > 0) && d < 35;
+    if (!(wanted || speeding || saw)) continue;
+    v.driver = 'cop';
+    v.route = null;
+    g.events.push('siren');
+    if (stars(D) === 0) {
+      addHeat(D, 1.1);
+      api.toast(speeding ? 'Speeding! A cop is after you!' : 'A cop saw that! Lose him!');
+    }
+  }
+}
+
 function updateCops(g, api, dt) {
   const D = g.drive;
   const P = D.player;
+  D.alert = Math.max(0, D.alert - dt);
+  alertPatrols(g, api);
   const cops = D.vehicles.filter((v) => v.driver === 'cop' && !v.wreck);
   const want = D.copsEnabled && stars(D) > 0 ? Math.min(4, stars(D) + 1) : 0;
   D.copSpawnT -= dt;
@@ -664,7 +700,7 @@ function updateCops(g, api, dt) {
   // every so often a cop just decides to chase you
   D.randCopT -= dt;
   if (D.randCopT <= 0) {
-    D.randCopT = 40 + rnd(D) * 35;
+    D.randCopT = 30 + rnd(D) * 25;
     if (D.copsEnabled && stars(D) === 0 && cops.length === 0) {
       addHeat(D, 1.1);
       spawnCop(g);
@@ -680,7 +716,7 @@ function updateCops(g, api, dt) {
   const pv = playerVehicle(D);
   const slow = pv ? speedOf(pv) < 2.5 : true;
   const caught = cops.some((c) => dist(c, P) < 2.8);
-  if (caught && slow) D.bust += dt;
+  if (caught && slow && D.drunk <= 0) D.bust += dt;
   else D.bust = Math.max(0, D.bust - 1.5 * dt);
   if (D.bust >= BUST_TIME) {
     D.bust = 0;
@@ -773,7 +809,7 @@ function handleAction(g, api) {
   }
   const v = nearestVehicle(D, P);
   if (!v) return;
-  if (v.driver === 'cop') {
+  if (v.driver === 'cop' || v.driver === 'patrol') {
     fx(D, P.x, P.y - 1.5, "Can't steal a cop car");
     return;
   }
@@ -783,7 +819,7 @@ function handleAction(g, api) {
     fx(D, ped.x, ped.y - 1.2, SHOUTS[Math.floor(rnd(D) * SHOUTS.length)]);
     D.hint = { text: hintText(D, L, P), t: 7 };
     g.score += 200;
-    addHeat(D, 0.9);
+    addHeat(D, 1.3);
     api.emit('carjack');
     fx(D, P.x, P.y - 2, 'CARJACKED! +200');
     v.route = null;
@@ -815,15 +851,25 @@ export function stepDrive(g, input, dt, api) {
   const steer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
   const gas = !!input.jump;
   const brake = !!input.throw;
+  // drunk driving: invincible, a bit faster, and the steering has a mind of its own
+  const wasDrunk = D.drunk > 0;
+  D.drunk = Math.max(0, D.drunk - dt);
+  if (wasDrunk && D.drunk === 0) api.toast('Sobering up...');
+  const wobble = D.drunk > 0 ? Math.sin(D.time * 2.3) * 0.32 + Math.sin(D.time * 5.1) * 0.18 : 0;
+  const steerIn = clamp(steer + wobble, -1, 1);
 
   // --- who is controlling what
   const pv = playerVehicle(D);
-  if (pv) pv.inp = { steer, gas, brake };
+  if (pv) {
+    pv.inp = { steer: steerIn, gas, brake };
+    pv.boost = D.drunk > 0 ? 1.12 : 1;
+    if (D.drunk > 0) pv.hp = pv.maxHp; // nothing can touch you
+  }
   if (action) handleAction(g, api);
 
   const vehicleNow = playerVehicle(D);
   if (!vehicleNow) {
-    P.h += steer * 3.4 * dt;
+    P.h += steerIn * 3.4 * dt;
     const sp = gas ? FOOT_SPEED : brake ? -2 : 0;
     P.vx = Math.cos(P.h) * sp;
     P.vy = Math.sin(P.h) * sp;
@@ -838,7 +884,7 @@ export function stepDrive(g, input, dt, api) {
       v.vx = v.vy = 0;
       continue;
     }
-    if (v.driver === 'civ' && v.route) v.inp = aiCivilian(g, v, dt);
+    if ((v.driver === 'civ' || v.driver === 'patrol') && v.route) v.inp = aiCivilian(g, v, dt);
     else if (v.driver === 'cop') v.inp = aiCop(g, v, dt);
     else if (v.driver !== 'player') v.inp = { steer: 0, gas: false, brake: true }; // handbrake on
     physics(L, v, dt);
@@ -945,7 +991,12 @@ export function stepDrive(g, input, dt, api) {
   for (const pk of D.pickups) {
     if (pk.taken || Math.hypot(pk.x - me.x, pk.y - me.y) > 1.4) continue;
     pk.taken = true;
-    if (pk.kind === 'life') api.addLife();
+    if (pk.kind === 'beer') {
+      D.drunk = Math.min(20, D.drunk + 12);
+      api.toast('DRUNK DRIVING! Invincible! (steering gets wobbly...)');
+      api.emit('drink');
+      fx(D, pk.x, pk.y - 0.8, 'GLUG!');
+    } else if (pk.kind === 'life') api.addLife();
     else {
       api.collectJug();
       fx(D, pk.x, pk.y - 0.6, '+100');
@@ -976,7 +1027,7 @@ export function stepDrive(g, input, dt, api) {
   if (playerVehicle(D)) D.prompt = 'EXIT';
   else {
     const n = nearestVehicle(D, P);
-    D.prompt = !n ? null : n.driver === 'cop' ? 'LOCKED' : n.driver === 'civ' ? 'CARJACK' : 'ENTER';
+    D.prompt = !n ? null : n.driver === 'cop' || n.driver === 'patrol' ? 'LOCKED' : n.driver === 'civ' ? 'CARJACK' : 'ENTER';
   }
 
   // --- camera and effects
@@ -1033,18 +1084,21 @@ function collideVehicles(g, api, a, b) {
           const srcA = a.driver === 'player' ? 'player' : null;
           const srcB = b.driver === 'player' ? 'player' : null;
           // the lighter ride takes the beating
-          damageVehicle(g, api, a, (impact - 2.5) * 3.4 * wa * 2 * sb.ram, srcB);
-          damageVehicle(g, api, b, (impact - 2.5) * 3.4 * wb * 2 * sa.ram, srcA);
+          const drunkA = a.driver === 'player' && D.drunk > 0 ? 2 : 1;
+          const drunkB = b.driver === 'player' && D.drunk > 0 ? 2 : 1;
+          damageVehicle(g, api, a, (impact - 2.5) * 3.4 * wa * 2 * sb.ram * drunkB, srcB);
+          damageVehicle(g, api, b, (impact - 2.5) * 3.4 * wb * 2 * sa.ram * drunkA, srcA);
           const involvesPlayer = a.driver === 'player' || b.driver === 'player';
           if (involvesPlayer && impact > 3) {
             const other = a.driver === 'player' ? b : a;
-            if (D.crimeCd <= 0 && (other.driver === 'civ' || other.driver === 'cop')) {
+            if (D.crimeCd <= 0 && (other.driver === 'civ' || other.driver === 'cop' || other.driver === 'patrol')) {
               D.crimeCd = 1.2;
-              addHeat(D, other.driver === 'cop' ? 0.2 : 0.3);
+              addHeat(D, other.driver === 'civ' ? 0.5 : 0.35);
               g.score += 100;
               fx(D, (a.x + b.x) / 2, (a.y + b.y) / 2 - 1, 'CRASH! +100');
             }
-            if (other.driver === 'civ') other.panic = 3;
+            if (other.driver === 'civ' || other.driver === 'patrol') other.panic = 3;
+            D.alert = 4;
             if (D.crashCd <= 0) {
               D.crashCd = 0.4;
               spark(D, (ca.x + cb.x) / 2, (ca.y + cb.y) / 2);

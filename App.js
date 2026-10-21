@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Platform, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { createGame, step, STEP, SHINE_MAX, AMMO_MAX, GEAR, LEVEL_COUNT, continueGame, startPlaying, loadLevel, advanceScene, chooseScene, startScene } from './engine/game';
+import { createGame, createGameAt, step, STEP, SHINE_MAX, AMMO_MAX, GEAR, LEVEL_COUNT, continueGame, startPlaying, loadLevel, advanceScene, chooseScene, startScene } from './engine/game';
 import { Billy, Critter, Cob, Ray, Shot, Jug, OneUp, GearItem, Tile, Ground, Emoji, Booth, CastleGate, Fridge, Tequila, FlameBall, HellGate, gearEmoji } from './src/Sprites';
 import { SceneView, EndingView } from './src/Scenes';
 import { DriveView } from './src/Drive';
+import { levelForCode } from './engine/cheats';
 import { initAudio, play, toggleMute, isMuted, setMusicTheme } from './src/sound';
 
 
@@ -225,11 +226,46 @@ export default function App() {
     window.__scene = (id) => startScene(gameRef.current, id);
   }
 
-  const start = () => {
+  const start = (lvl) => {
+    const n = typeof lvl === 'number' ? lvl : 1;
     initAudio();
-    gameRef.current = createGame();
+    gameRef.current = n > 1 ? createGameAt(n) : createGame();
     gameRef.current.viewW = viewW;
     setScreen('play');
+  };
+
+  // Secret level select: tap the title five times, then punch in a code
+  const [codeOpen, setCodeOpen] = useState(false);
+  const [codeText, setCodeText] = useState('');
+  const [codeMsg, setCodeMsg] = useState('');
+  const tapsRef = useRef([]);
+  const tapTitle = () => {
+    const now = Date.now();
+    tapsRef.current = [...tapsRef.current.filter((t) => now - t < 3000), now];
+    if (tapsRef.current.length >= 5) {
+      tapsRef.current = [];
+      setCodeText('');
+      setCodeMsg('Enter code');
+      setCodeOpen(true);
+    }
+  };
+  const pressDigit = (d) => {
+    if (codeText.length >= 4) return;
+    const next = codeText + d;
+    setCodeText(next);
+    if (next.length === 4) {
+      const lvl = levelForCode(next);
+      if (lvl) {
+        setCodeOpen(false);
+        start(lvl);
+      } else {
+        setCodeMsg('Wrong code!');
+        setTimeout(() => {
+          setCodeText('');
+          setCodeMsg('Enter code');
+        }, 700);
+      }
+    }
   };
 
   const theme = g.level.theme;
@@ -262,6 +298,17 @@ export default function App() {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [screen]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !codeOpen) return;
+    const onKey = (e) => {
+      if (e.key >= '0' && e.key <= '9') pressDigit(e.key);
+      else if (e.key === 'Backspace') setCodeText((c) => c.slice(0, -1));
+      else if (e.key === 'Escape') setCodeOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   // Keyboard (web / simulator with hardware keyboard)
   useEffect(() => {
@@ -479,8 +526,8 @@ export default function App() {
       )}
 
       {screen === 'title' && (
-        <Pressable style={styles.overlay} onPress={start}>
-          <Text style={styles.title}>BILLY BUBS</Text>
+        <Pressable style={styles.overlay} onPress={() => !codeOpen && start()}>
+          <Text style={styles.title} onPress={tapTitle}>BILLY BUBS</Text>
           <Text style={styles.sub}>Collect {level.goalJugs} jugs of shine and get Billy to his truck, y'all!</Text>
           <Text style={styles.hint}>🌽 throw corn cobs  •  jump twice for a double jump{'\n'}fill the SHINE meter, then hit RUSH to be invincible, fast, and fire triple cobs</Text>
           <Text style={styles.tap}>Tap to start</Text>
@@ -505,8 +552,8 @@ export default function App() {
       )}
       {screen === 'play' && g.mode === 'ending' && <EndingView g={g} width={width} height={height} onRestart={start} />}
       {screen === 'play' && g.mode === 'gameover' && (
-        <Pressable style={styles.overlay} onPress={start}>
-          <Text style={styles.title}>GAME OVER</Text>
+        <Pressable style={styles.overlay} onPress={() => !codeOpen && start()}>
+          <Text style={styles.title} onPress={tapTitle}>GAME OVER</Text>
           <Text style={styles.sub}>Score {g.score}</Text>
           <Text style={styles.tap}>Tap to try again</Text>
         </Pressable>
@@ -529,6 +576,32 @@ export default function App() {
           {g.levelNo === 3 && <Text style={styles.hint}>Billy now wears full knight-alien armor with a ray gun, sword and shield.</Text>}
           <Text style={styles.tap}>Tap to continue</Text>
         </Pressable>
+      )}
+      {codeOpen && (
+        <View style={styles.codeWrap}>
+          <View style={styles.codeBox}>
+            <Text style={styles.codeTitle}>LEVEL SELECT</Text>
+            <Text style={[styles.codeMsg, codeMsg === 'Wrong code!' && { color: '#ff6a6a' }]}>{codeMsg}</Text>
+            <View style={styles.codeDots}>
+              {[0, 1, 2, 3].map((i) => (
+                <View key={i} style={styles.codeDot}>
+                  <Text style={styles.codeDigit}>{codeText[i] ?? ''}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.keypad}>
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '✕'].map((k) => (
+                <Pressable
+                  key={k}
+                  style={styles.key}
+                  onPress={() => (k === 'C' ? setCodeText('') : k === '✕' ? setCodeOpen(false) : pressDigit(k))}
+                >
+                  <Text style={styles.keyText}>{k}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
       )}
     </View>
   );
@@ -554,6 +627,16 @@ const styles = StyleSheet.create({
   btnText: { color: '#fff', fontSize: 22, fontWeight: '900' },
   sign: { position: 'absolute', fontWeight: '900', color: '#fff', ...shadow },
   mute: { position: 'absolute', top: 38, right: 44, opacity: 0.8 },
+  codeWrap: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.82)', alignItems: 'center', justifyContent: 'center', zIndex: 50 },
+  codeBox: { alignItems: 'center', backgroundColor: '#1d1d2a', borderRadius: 18, borderWidth: 2, borderColor: '#9be37a', paddingVertical: 12, paddingHorizontal: 22 },
+  codeTitle: { color: '#9be37a', fontWeight: '900', fontSize: 16, letterSpacing: 3 },
+  codeMsg: { color: '#fff', fontSize: 13, marginTop: 2, marginBottom: 6, fontWeight: '700' },
+  codeDots: { flexDirection: 'row', gap: 8, marginBottom: 8 },
+  codeDot: { width: 38, height: 44, borderRadius: 8, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },
+  codeDigit: { color: '#fff', fontSize: 24, fontWeight: '900' },
+  keypad: { flexDirection: 'row', flexWrap: 'wrap', width: 3 * 62, gap: 4, justifyContent: 'center' },
+  key: { width: 56, height: 36, borderRadius: 8, backgroundColor: '#34344a', alignItems: 'center', justifyContent: 'center' },
+  keyText: { color: '#fff', fontSize: 18, fontWeight: '800' },
   hint: { fontSize: 14, color: '#f6e3b4', marginTop: 12, textAlign: 'center', lineHeight: 20, maxWidth: 620, ...shadow },
   pop: { position: 'absolute', fontWeight: '900', color: '#fff', ...shadow },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(30,20,10,0.78)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 },

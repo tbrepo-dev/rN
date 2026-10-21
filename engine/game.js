@@ -101,6 +101,19 @@ const ENEMY_KINDS = {
   packbilly: { ai: 'pack', speed: 3, w: 2.4, h: 2.4, edgeTurn: false, hp: 999, stomp: false, invuln: true },
 };
 
+// Starting at a later level (the secret codes) hands Billy what he would have found on the way
+export function createGameAt(n) {
+  const g = createGame({ level: n });
+  if (n >= 3) ['raygun', 'antenna', 'vest'].forEach((k) => (g.gear[k] = true));
+  if (n >= 4) ['sword', 'shield', 'knightHelm', 'plate'].forEach((k) => (g.gear[k] = true));
+  if (n >= 3) g.ammo = 15;
+  if (n > 1) {
+    respawn(g);
+    g.mode = 'intro';
+  }
+  return g;
+}
+
 export function createGame({ enemies = true, level = 1 } = {}) {
   const g = {
     levelNo: 1,
