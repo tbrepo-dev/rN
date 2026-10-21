@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
+import { QueenArt } from './Hive';
 
 const c = {
   skin: '#f1c27d',
@@ -140,6 +141,15 @@ export function Billy({ p, ts, gear = {}, fire = false, lit = 0, t = 0 }) {
           <View style={{ position: 'absolute', left: 0, top: 0, width: w * 0.5, height: '100%', backgroundColor: '#c9d3df', borderRadius: 3, borderWidth: 1, borderColor: '#5b6675' }} />
           <View style={{ position: 'absolute', left: w * 0.45, top: '25%', width: w * 0.33, height: '50%', backgroundColor: '#58e07a', borderRadius: 3 }} />
           <View style={{ position: 'absolute', left: w * 0.1, top: '100%', width: w * 0.14, height: h * 0.1, backgroundColor: '#5b6675' }} />
+        </View>
+      )}
+      {/* the Egg-zooka: an olive launcher tube over the shoulder */}
+      {gear.bazooka && !slashing && (
+        <View style={{ position: 'absolute', top: hatH + faceH * 0.78, left: -w * 0.35, width: w * 1.75, height: Math.max(7, h * 0.15), backgroundColor: '#6b7a3a', borderRadius: 4, borderWidth: 1, borderColor: '#2f3a14' }}>
+          <View style={{ position: 'absolute', left: -2, top: -1, width: w * 0.22, height: '120%', backgroundColor: '#3a4420', borderRadius: 3 }} />
+          <View style={{ position: 'absolute', right: -2, top: -2, width: w * 0.2, height: '140%', backgroundColor: '#2a3010', borderRadius: 3 }} />
+          <View style={{ position: 'absolute', left: w * 0.55, top: -Math.max(3, h * 0.05), width: w * 0.18, height: Math.max(3, h * 0.05), backgroundColor: '#2f3a14' }} />
+          {p.bazCd > 0.35 && <Text style={{ position: 'absolute', right: -w * 0.6, top: -h * 0.2, fontSize: h * 0.6 }}>💥</Text>}
         </View>
       )}
       {/* sword swing */}
@@ -330,6 +340,12 @@ export function Shot({ s, ts }) {
   if (s.kind === 'wave') {
     return <View style={{ position: 'absolute', left: s.x * ts, top: s.y * ts, width: s.w * ts, height: s.h * ts, borderTopLeftRadius: s.w * ts, borderTopRightRadius: s.w * ts, backgroundColor: 'rgba(255,176,60,0.85)', borderWidth: 3, borderColor: '#d9701c' }} />;
   }
+  if (s.kind === 'acid') {
+    const d = s.w * ts * 1.25;
+    return (
+      <View style={{ position: 'absolute', left: s.x * ts, top: s.y * ts, width: d, height: d * 1.3, borderRadius: d / 2, borderTopLeftRadius: d * 0.2, backgroundColor: '#9dff3a', borderWidth: 2, borderColor: '#3f9a14', shadowColor: '#9dff3a', shadowRadius: 8, shadowOpacity: 1, shadowOffset: { width: 0, height: 0 }, transform: [{ rotate: `${Math.atan2(s.vy, s.vx || 0.01) * 57.3 - 90}deg` }] }} />
+    );
+  }
   if (s.kind === 'hair') {
     const d = s.w * ts * 1.3;
     return <View style={{ position: 'absolute', left: s.x * ts, top: s.y * ts, width: d, height: d, borderRadius: d / 2, backgroundColor: '#8a6a4a', borderWidth: 3, borderColor: '#4a3a2a' }} />;
@@ -452,7 +468,7 @@ export function Jug({ x, y, ts, t = 0, glow = false, kind = 'jug' }) {
   );
 }
 
-const GEAR_EMOJI = { raygun: '🔫', antenna: '📡', vest: '🦺', sword: '🗡️', shield: '🛡️', knightHelm: '🪖', plate: '🧥' };
+const GEAR_EMOJI = { raygun: '🔫', antenna: '📡', vest: '🦺', sword: '🗡️', shield: '🛡️', knightHelm: '🪖', plate: '🧥', bazooka: '🚀' };
 export const gearEmoji = (name) => GEAR_EMOJI[name];
 
 export function GearItem({ it, ts, t }) {
@@ -473,7 +489,13 @@ export function GearItem({ it, ts, t }) {
         justifyContent: 'center',
       }}
     >
-      <Text style={{ fontSize: ts * 0.6 }}>{GEAR_EMOJI[it.gear]}</Text>
+      {it.gear === 'bazooka' ? (
+        <View style={{ width: ts * 0.8, height: ts * 0.22, borderRadius: 4, backgroundColor: '#6b7a3a', borderWidth: 2, borderColor: '#2f3a14', transform: [{ rotate: '-18deg' }] }}>
+          <View style={{ position: 'absolute', right: -3, top: -3, width: ts * 0.16, height: ts * 0.28, borderRadius: 3, backgroundColor: '#2a3010' }} />
+        </View>
+      ) : (
+        <Text style={{ fontSize: ts * 0.6 }}>{GEAR_EMOJI[it.gear]}</Text>
+      )}
     </View>
   );
 }
@@ -1113,6 +1135,7 @@ export function Character({ who, size, gear, fire, t = 0 }) {
       </View>
     );
   }
+  if (who === 'queen') return <QueenArt u={size * 0.5} t={t} open={0.15 + 0.15 * Math.sin(t * 5)} />;
   if (who === 'bigal') return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.1 }}>🧔‍♂️</Text>;
   if (who === 'devil') return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.1 }}>😈</Text>;
   if (who === 'packbilly') return <PackBilly D={size * 1.2} open={0.5 + 0.5 * Math.sin(t * 10)} t={t} />;

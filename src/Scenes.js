@@ -4,8 +4,8 @@ import { SCENES } from '../engine/story';
 import { GEAR } from '../engine/game';
 import { Character, Jinxy, gearEmoji } from './Sprites';
 
-const NAMES = { billy: 'Billy', wizard: 'Merlinzo', jinxy: 'Jinxy', devil: 'The Devil', packbilly: 'Pack Billy', bigal: 'Big Al', narrator: '', sign: '' };
-const NAME_COLORS = { billy: '#3d7be0', wizard: '#8a4fd1', jinxy: '#2aa6a6', devil: '#c8321e', packbilly: '#d8a800', bigal: '#8a2a7a' };
+const NAMES = { billy: 'Billy', wizard: 'Merlinzo', jinxy: 'Jinxy', devil: 'The Devil', packbilly: 'Pack Billy', bigal: 'Big Al', queen: 'The Alien Queen', narrator: '', sign: '' };
+const NAME_COLORS = { billy: '#3d7be0', wizard: '#8a4fd1', jinxy: '#2aa6a6', devil: '#c8321e', packbilly: '#d8a800', bigal: '#8a2a7a', queen: '#4a8a1a' };
 const shadow = { textShadowColor: 'rgba(0,0,0,0.65)', textShadowRadius: 3, textShadowOffset: { width: 1, height: 2 } };
 
 // Who is on stage at line `idx`: the last cast set at or before it
@@ -103,6 +103,23 @@ function Backdrop({ bg, w, h, t }) {
           {Array.from({ length: 10 }, (_, i) => (
             <Text key={i} style={{ position: 'absolute', left: `${(i * 97) % 100}%`, top: `${100 - ((i * 23 + t * 14) % 70)}%`, fontSize: 12, opacity: 0.7 }}>✦</Text>
           ))}
+        </View>
+      );
+    case 'hive':
+      return (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#120a18' }]} />
+          {[0.12, 0.38, 0.64, 0.9].map((f, i) => (
+            <View key={f} style={{ position: 'absolute', left: w * f - 26, top: -20, width: 52, height: h * 0.8, borderRadius: 30, backgroundColor: 'rgba(90,40,110,0.3)', transform: [{ rotate: `${(i % 2 ? 1 : -1) * 5}deg` }] }} />
+          ))}
+          {[0.2, 0.55, 0.8].map((f, i) => (
+            <Text key={f} style={{ position: 'absolute', left: w * f, top: floorY - 34 + Math.sin(t * 2 + i) * 2, fontSize: 36 }}>🥚</Text>
+          ))}
+          {Array.from({ length: 18 }, (_, i) => (
+            <View key={i} style={{ position: 'absolute', left: `${(i * 47) % 100}%`, top: `${100 - ((i * 29 + t * 5) % 100)}%`, width: 4, height: 4, borderRadius: 2, backgroundColor: '#9dffcf', opacity: 0.3 + 0.25 * Math.sin(t * 2 + i) }} />
+          ))}
+          <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, bottom: 0, backgroundColor: '#2b2033' }} />
+          <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, height: 8, backgroundColor: '#7a5a8a' }} />
         </View>
       );
     case 'gates':
@@ -232,7 +249,7 @@ export function SceneView({ g, width, height, onAdvance, onChoose }) {
         </View>
       )}
       {!dark && b && !anim && (
-        <View style={{ position: 'absolute', right: width * 0.14, top: floorY - S * (b === 'jinxy' ? 0.72 : b === 'packbilly' ? 1.15 : 0.95) + bobFor(b), opacity: speaker === b || speaker === 'narrator' || speaker === 'sign' ? 1 : 0.8 }}>
+        <View style={{ position: 'absolute', right: width * 0.14, top: floorY - S * (b === 'jinxy' ? 0.72 : b === 'packbilly' ? 1.15 : b === 'queen' ? 1.38 : 0.95) + bobFor(b), opacity: speaker === b || speaker === 'narrator' || speaker === 'sign' ? 1 : 0.8 }}>
           <Character who={b} size={S} t={t} />
         </View>
       )}

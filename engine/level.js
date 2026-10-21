@@ -7,6 +7,11 @@ export const HAY = 2;
 export const CRATE = 3; // unhit "?" crate
 export const USED = 4; // spent crate
 export const STUMP = 5;
+export const BREAKABLE = 6; // cracked wall: shoot or slash it
+export const DOOR_BLUE = 7; // opens when you shoot it
+export const DOOR_RED = 8; // only a missile opens it
+export const ACID = 10; // not solid, but it burns
+export const VIEW_H = 11; // tile rows on screen in the big scrolling levels
 
 export const LEVEL_W = 150;
 export const LEVEL_H = 11;
@@ -600,8 +605,233 @@ function buildHell() {
   });
 }
 
-export const LEVEL_COUNT = 7;
-const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell, buildTown];
+// ---------------------------------------------------------------------------
+// Level 8: The Hive. A Metroid-style map: interconnected caves, blue and red doors, save stations,
+// energy tanks, a secret wall that hides a portal to the Egg Chamber (where you harvest a bazooka
+// from an alien egg), and the hillbilly Alien Queen waiting behind a door only a missile can open.
+function buildHive() {
+  const W8 = 200;
+  const H8 = 60;
+  const B = builder(W8, { h: H8, groundY: 50 });
+  const { tiles } = B;
+  const set = (x, y, t) => {
+    if (x >= 0 && y >= 0 && x < W8 && y < H8) tiles[y][x] = t;
+  };
+  const fill = (x, y, w, h, t) => {
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) set(xx, yy, t);
+  };
+  const carve = (x0, y0, x1, y1) => fill(x0, y0, x1 - x0 + 1, y1 - y0 + 1, EMPTY);
+  const ledge = (x0, x1, feet) => fill(x0, feet, x1 - x0 + 1, 1, HAY);
+  const acid = (x0, x1, y) => fill(x0, y, x1 - x0 + 1, 1, ACID);
+  const door = (x, y0, y1, type) => fill(x, y0, 1, y1 - y0 + 1, type);
+  fill(0, 0, W8, H8, GROUND); // all rock; now carve the caves out of it
+
+  // R1: the crash bay, where Billy lands
+  carve(2, 44, 29, 49);
+  ledge(10, 13, 47);
+  ledge(20, 22, 46);
+  // the door to the first cavern
+  carve(30, 46, 33, 49);
+  door(31, 46, 49, DOOR_BLUE);
+  // R2: the egg cavern, with a save station, a step, a pit, and a shaft up
+  carve(34, 40, 70, 49);
+  fill(52, 48, 5, 2, GROUND); // a step
+  ledge(58, 60, 47); // a ledge for a spitter
+  carve(63, 50, 66, 52); // a pit with acid at the bottom
+  acid(63, 66, 52);
+  // the shaft up to the gallery: ledges every 3 rows, alternating right and left
+  carve(44, 21, 50, 39);
+  const shaft1 = [[47, 'R'], [44, 'L'], [41, 'R'], [38, 'L'], [35, 'R'], [32, 'L'], [29, 'R'], [26, 'L'], [23, 'R']];
+  shaft1.forEach(([f, side]) => (side === 'R' ? ledge(48, 50, f) : ledge(44, 46, f)));
+  // the secret: a cracked wall in the east end of the cavern, hiding a little alcove with a sac-like portal
+  carve(72, 47, 75, 49);
+  door(71, 47, 49, BREAKABLE);
+
+  // The gallery: a long hall across the top, with acid pits and a hidden energy tank
+  carve(12, 9, 117, 20);
+  ledge(38, 40, 18);
+  ledge(33, 35, 15);
+  ledge(28, 30, 12);
+  ledge(22, 26, 12); // the tank sits here
+  carve(62, 21, 66, 23); // pit 1
+  acid(62, 66, 23);
+  carve(76, 21, 86, 23); // pit 2, with a platform over it
+  acid(76, 86, 23);
+  ledge(79, 83, 19);
+  carve(98, 21, 103, 23); // pit 3
+  acid(98, 103, 23);
+  ledge(100, 101, 20);
+  fill(70, 17, 2, 4, GROUND); // a pillar to jump
+  // the door out of the gallery, and a corridor to the second shaft
+  door(118, 17, 20, DOOR_BLUE);
+  carve(119, 17, 121, 20);
+  // the second shaft down to the Hive Core, with ledges for climbing back up
+  carve(122, 17, 128, 37);
+
+  // R3: the Hive Core, full of eggs. Another energy tank is hidden up high on the right
+  carve(100, 38, 149, 49);
+  // (ledges go in after the Core is carved, since the lower ones stand inside it)
+  const shaft2 = [[47, 'L'], [44, 'R'], [41, 'L'], [38, 'R'], [35, 'L'], [32, 'R'], [29, 'L'], [26, 'R'], [23, 'L']];
+  shaft2.forEach(([f, side]) => (side === 'L' ? ledge(122, 124, f) : ledge(126, 128, f)));
+  ledge(108, 112, 46);
+  ledge(130, 136, 46);
+  ledge(138, 141, 43);
+  ledge(143, 147, 40);
+  carve(114, 50, 118, 52); // a pit
+  acid(114, 118, 52);
+  // the red door, only a missile will open it
+  door(150, 46, 49, DOOR_RED);
+  // R4: the Queen's nest
+  carve(151, 36, 198, 49);
+  ledge(166, 170, 46);
+  ledge(180, 184, 46);
+  ledge(172, 176, 42);
+
+  // --- creatures (y = the floor they stand on)
+  const en = B.enemy;
+  en('hugger', 14, 50);
+  en('hugger', 25, 50);
+  en('hugger', 38, 50);
+  en('xeno', 46, 50);
+  en('egg', 41, 50);
+  en('egg', 60, 50);
+  en('spitter', 59, 47);
+  en('xeno', 67.5, 50);
+  en('drone', 47, 28);
+  en('spitter', 56, 21);
+  en('hugger', 66, 21);
+  en('xeno', 72, 21);
+  en('egg', 56, 21);
+  en('egg', 90, 21);
+  en('spitter', 90, 21);
+  en('hugger', 96, 21);
+  en('egg', 108, 21);
+  en('drone', 120, 28);
+  en('spitter', 125, 50);
+  en('xeno', 106, 50);
+  en('xeno', 136, 46);
+  en('xeno', 120, 50);
+  en('egg', 104, 50);
+  en('egg', 126, 50);
+  en('egg', 134, 50);
+  en('egg', 144, 50);
+  en('spitter', 110, 46);
+  en('spitter', 146, 40);
+  en('hugger', 140, 50);
+  en('queen', 188, 50);
+  const eggSpots = [162, 170, 178, 192, 196].map((x) => ({ x, floor: 50 }));
+
+  // --- things to find
+  const saves = [{ x: 36, floor: 50 }, { x: 53, floor: 21 }, { x: 133, floor: 50 }, { x: 155, floor: 50 }];
+  const tanks = [{ x: 24, y: 10.2, taken: false }, { x: 145, y: 38.2, taken: false }];
+  const portals = [{ x: 73.2, y: 47, w: 1.8, h: 3, to: 'egg' }];
+  B.jugs(8, 48.5, 3);
+  B.jugs(60, 18, 4);
+  B.jugs(104, 18, 5);
+  B.jugs(162, 46, 4);
+  B.life(29, 10); // a 1UP up in the rafters of the gallery
+
+  return B.finish({
+    id: 8,
+    name: 'The Hive',
+    theme: 'hive',
+    collectible: 'jug',
+    goalKind: 'queen',
+    boss: true,
+    bossScene: 'queenDead',
+    scrollY: true,
+    startX: 5,
+    startFloor: 50,
+    checkpointX: Infinity,
+    goalX: 0,
+    goalJugs: 0,
+    saves,
+    tanks,
+    portals,
+    eggSpots,
+    // for the tests: the standing spots along the main route (x, floor) and the secret route
+    route: [
+      [5, 50], [28, 50], [36, 50], [49, 47], [45, 44], [49, 41], [45, 38], [49, 35], [45, 32], [49, 29], [45, 26], [49, 23], [53, 21],
+      [60, 21], [68, 21], [74, 21], [81, 19], [88, 21], [96, 21], [100.5, 20], [105, 21], [116, 21], [120, 21],
+      [123, 23], [127, 26], [123, 29], [127, 32], [123, 35], [127, 38], [123, 41], [127, 44], [123, 47], [126, 50],
+      [133, 50], [148, 50], [153, 50], [165, 50], [188, 50],
+    ],
+    secretRoute: [[36, 50], [60, 50], [68, 50], [73, 50]],
+  });
+}
+
+// The secret level inside the Hive: the Egg Chamber. Fight your way through the nest to the Queen
+// Egg at the top, crack it open, and harvest the bazooka.
+function buildEggChamber() {
+  const W9 = 80;
+  const H9 = 44;
+  const B = builder(W9, { h: H9, groundY: 38 });
+  const { tiles } = B;
+  const set = (x, y, t) => {
+    if (x >= 0 && y >= 0 && x < W9 && y < H9) tiles[y][x] = t;
+  };
+  const fill = (x, y, w, h, t) => {
+    for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) set(xx, yy, t);
+  };
+  const carve = (x0, y0, x1, y1) => fill(x0, y0, x1 - x0 + 1, y1 - y0 + 1, EMPTY);
+  const ledge = (x0, x1, feet) => fill(x0, feet, x1 - x0 + 1, 1, HAY);
+  const acid = (x0, x1, y) => fill(x0, y, x1 - x0 + 1, 1, ACID);
+  fill(0, 0, W9, H9, GROUND);
+
+  carve(2, 32, 18, 37); // E1: the way in
+  carve(19, 32, 40, 37); // E2
+  carve(20, 38, 23, 40); // pit 1
+  acid(20, 23, 40);
+  carve(41, 32, 50, 37); // pit 2 with a platform over it
+  carve(41, 38, 50, 40);
+  acid(41, 50, 40);
+  ledge(44, 47, 36);
+  carve(51, 32, 62, 37); // E3, with the shaft going up
+  carve(56, 17, 62, 31);
+  [[35, 'L'], [32, 'R'], [29, 'L'], [26, 'R'], [23, 'L'], [20, 'R']].forEach(([f, side]) => (side === 'L' ? ledge(56, 58, f) : ledge(60, 62, f)));
+  carve(44, 6, 76, 16); // the Queen Egg chamber at the top
+
+  const en = B.enemy;
+  en('hugger', 12, 38);
+  en('egg', 16, 38);
+  en('hugger', 30, 38);
+  en('spitter', 36, 38);
+  en('egg', 26, 38);
+  en('hugger', 52, 38);
+  en('xeno', 54, 38);
+  en('egg', 59, 38);
+  en('spitter', 49, 17);
+  en('hugger', 66, 17);
+  en('queenegg', 69, 17);
+
+  return B.finish({
+    id: 9,
+    name: 'The Egg Chamber',
+    theme: 'egg',
+    collectible: 'jug',
+    goalKind: 'secret',
+    scrollY: true,
+    secret: true,
+    startX: 4,
+    startFloor: 38,
+    checkpointX: Infinity,
+    goalX: 0,
+    goalJugs: 0,
+    saves: [{ x: 6, floor: 38 }, { x: 53, floor: 38 }],
+    tanks: [{ x: 47, y: 15.2, taken: false }],
+    portals: [{ x: 74, y: 13, w: 2, h: 4, to: 'parent' }],
+    eggSpots: [],
+    route: [[4, 38], [19, 38], [24, 38], [40, 38], [45, 36], [52, 38], [57, 35], [61, 32], [57, 29], [61, 26], [57, 23], [61, 20], [65, 17], [70, 17]],
+  });
+}
+
+export function buildSecret(id) {
+  if (id === 'egg') return buildEggChamber();
+  throw new Error(`no secret level ${id}`);
+}
+
+export const LEVEL_COUNT = 8;
+const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell, buildTown, buildHive];
 
 export function buildLevel(n = 1) {
   return BUILDERS[n - 1]();

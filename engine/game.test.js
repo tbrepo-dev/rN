@@ -335,7 +335,7 @@ test('levels carry gear, ammo, score and lives forward', () => {
   assert.equal(g.mode, 'playing');
   nextLevel(g);
   assert.equal(g.levelNo, 3);
-  assert.equal(LEVEL_COUNT, 7);
+  assert.equal(LEVEL_COUNT, 8);
 });
 
 test('killing aliens drops ray gun ammo; the antenna helmet doubles it', () => {
@@ -1184,7 +1184,7 @@ test("Big Al's is hard to find: hidden far away at the end of a dirt road, with 
   assert.ok(d(L.spawn, L.clues[0]) > 100 && d(L.clues[0], L.clues[1]) > 100 && d(L.clues[1], L.clues[2]) > 150);
 });
 
-test("the toilet cutscene leads to level 7, and reaching Big Al's leads to the ending", () => {
+test("the toilet cutscene leads to level 7, and reaching Big Al's leads to the Hive", () => {
   const g = createGame({ enemies: false, level: 6 });
   startScene(g, 'hellExit');
   for (let i = 0; i < SCENES.hellExit.lines.length; i++) advanceScene(g);
@@ -1196,8 +1196,10 @@ test("the toilet cutscene leads to level 7, and reaching Big Al's leads to the e
   assert.equal(g.mode, 'scene');
   assert.equal(g.scene.id, 'bigAl');
   for (let i = 0; i < SCENES.bigAl.lines.length; i++) advanceScene(g);
-  assert.equal(g.mode, 'ending');
-  assert.equal(g.ending, 'tbc');
+  assert.equal(g.mode, 'scene');
+  assert.equal(g.scene.id, 'abduction');
+  for (let i = 0; i < SCENES.abduction.lines.length; i++) advanceScene(g);
+  assert.equal(g.levelNo, 8);
 });
 
 test('pickups, tractors and trash trucks all handle differently', () => {
@@ -1689,7 +1691,7 @@ test("the whole hunt can be done: a bot follows the clues across the map and fin
 // ---- Secret level codes ----------------------------------------------------------
 test('every level has its own secret code, and bad codes do nothing', () => {
   assert.equal(Object.keys(LEVEL_CODES).length, LEVEL_COUNT);
-  assert.deepEqual(Object.values(LEVEL_CODES).sort(), [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(Object.values(LEVEL_CODES).sort(), [1, 2, 3, 4, 5, 6, 7, 8]);
   for (const [code, lvl] of Object.entries(LEVEL_CODES)) assert.equal(levelForCode(code), lvl);
   assert.equal(levelForCode('0000'), null);
   assert.equal(levelForCode('abcd'), null);
@@ -1706,7 +1708,7 @@ test('jumping to a level starts it with the gear Billy would have found on the w
     const g = createGameAt(n);
     assert.equal(g.levelNo, n);
     assert.equal(g.mode, n === 1 ? 'playing' : 'intro', `level ${n} intro`);
-    assert.equal(g.lives, 3);
+    assert.equal(g.lives, n >= 8 ? 5 : 3);
     startPlaying(g);
     run(g, none, 1);
     assert.ok(g.mode === 'playing' || g.mode === 'dying', `level ${n} runs: ${g.mode}`);

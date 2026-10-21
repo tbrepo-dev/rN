@@ -135,6 +135,39 @@ export const SCENES = {
       { who: 'billy', text: 'You have no idea.' },
       { who: 'narrator', text: 'Billy cracks open an ice-cold root beer and sits down for the first time all week. Outside, a siren wails... and a tiny shadow in a fur hat slips behind the dumpster.' },
     ],
+    then: { scene: 'abduction' },
+  },
+
+  // A beam from the sky takes Billy to the alien hive
+  abduction: {
+    bg: 'store',
+    cast: ['billy', 'bigal'],
+    lines: [
+      { who: 'narrator', text: 'The root beer rattles. The neon sign flickers. A column of green light drops out of the clouds.', fx: 'zap' },
+      { who: 'bigal', text: "Aw, shoot. Not again. They are the cousins of the aliens you been shooting, partner." },
+      { who: 'bigal', text: "Their mama is not happy. Folks call her the Queen." },
+      { who: 'billy', text: 'I only wanted a root beer!', anim: 'run' },
+      { who: 'narrator', text: 'Billy floats up into the mothership... and drops into a dark, dripping, breathing hive.', bg: 'hive', cast: ['billy'] },
+      { who: 'billy', text: 'Well this is gross. Where is my ray gun... and what is this stuff on the walls?' },
+      { who: 'narrator', text: 'Blue doors need a shot. Red doors need something a lot bigger. Somewhere deep in the nest, the Queen is waiting. Rumor says a cracked wall hides something worth finding.' },
+    ],
+    then: { level: 8 },
+  },
+
+  // After the Queen goes down
+  queenDead: {
+    bg: 'hive',
+    cast: ['billy', 'queen'],
+    lines: [
+      { who: 'narrator', text: 'The Alien Queen staggers. Black chitin cracks. Acid drips from her great big bunny teeth.' },
+      { who: 'queen', text: "Y'all ain't from around here, are ye, boy?" },
+      { who: 'billy', text: "I could say the same about you, ma'am." },
+      { who: 'queen', text: 'Hee hee. I was raised up in a barn on Tater Creek. Then the aliens got me. Then I got them.' },
+      { who: 'queen', text: "Big Mama only wanted a good home for her babies. Y'all are plumb rude." },
+      { who: 'billy', text: 'Sorry about your eggs. And your teeth.' },
+      { who: 'queen', text: 'Go on. Git. But something far worse is coming. It has a fur hat.' },
+      { who: 'narrator', text: 'The hive shudders. A hatch opens to the sky. Somewhere far away, a small grey cat purrs...' },
+    ],
     then: { ending: 'tbc' },
   },
 };

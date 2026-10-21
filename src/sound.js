@@ -31,6 +31,9 @@ const MUSIC = {
   // Hell: a low, pounding minor ostinato
   hell: { prog: ['Em', 'Em', 'F', 'Em', 'Em', 'F', 'D', 'Em'], roll: [0, 0, 2, 0, 3, 0, 2, 1], bpm: 140, type: 'sawtooth', oct: 0.5, vol: 1.2 },
   // Pagoda: koto-like plucks
+  // The Hive: a slow, dripping, dissonant creep
+  hive: { prog: ['Em', 'Em', 'F', 'Em', 'Am', 'Am', 'F', 'E'], roll: [0, 3, 1, 3, 0, 2, 1, 3], bpm: 92, type: 'triangle', oct: 0.5, vol: 1.8 },
+  egg: { prog: ['Am', 'F', 'Am', 'E', 'Am', 'F', 'E', 'E'], roll: [0, 2, 3, 2, 0, 1, 3, 1], bpm: 78, type: 'sine', oct: 1, vol: 2 },
   japan: { prog: ['Am', 'Am', 'F', 'Am', 'Dm', 'Am', 'E', 'Am'], roll: [0, 2, 3, 1, 3, 2, 1, 2], bpm: 112, type: 'triangle', oct: 2, vol: 1.6 },
 };
 let tune = MUSIC.holler;
@@ -181,6 +184,38 @@ const SFX = {
   },
   enter: (t) => slide(200, 120, t, 0.08, 0.14, 'square'),
   exit: (t) => slide(160, 220, t, 0.08, 0.14, 'square'),
+  missile: (t) => {
+    slide(240, 90, t, 0.35, 0.22, 'sawtooth');
+    slide(1200, 200, t, 0.12, 0.08, 'square');
+  },
+  explode: (t) => {
+    slide(160, 25, t, 0.6, 0.35, 'sawtooth');
+    slide(500, 60, t, 0.35, 0.25, 'square');
+    slide(90, 30, t + 0.05, 0.5, 0.25, 'triangle');
+  },
+  door: (t) => {
+    slide(120, 60, t, 0.25, 0.18, 'square');
+    pluck(880, t + 0.2, 0.2, 0.1, 'triangle');
+    pluck(1320, t + 0.28, 0.25, 0.1, 'triangle');
+  },
+  break: (t) => {
+    slide(300, 60, t, 0.3, 0.25, 'sawtooth');
+    slide(1400, 200, t, 0.1, 0.1, 'square');
+  },
+  save: (t) => [523, 659, 784, 1047].forEach((f, i) => pluck(f, t + i * 0.1, 0.35, 0.12, 'sine')),
+  tank: (t) => [392, 523, 659, 784, 1047, 1319].forEach((f, i) => pluck(f, t + i * 0.07, 0.3, 0.13, 'triangle')),
+  screech: (t) => {
+    slide(900, 2200, t, 0.5, 0.14, 'sawtooth');
+    slide(1200, 1800, t + 0.1, 0.5, 0.1, 'square');
+  },
+  hatch: (t) => {
+    slide(300, 100, t, 0.18, 0.18, 'triangle');
+    slide(1000, 400, t + 0.05, 0.12, 0.1, 'square');
+  },
+  sizzle: (t) => {
+    for (let i = 0; i < 5; i++) slide(2400 - i * 200, 900, t + i * 0.03, 0.05, 0.05, 'sawtooth');
+  },
+  portal: (t) => [220, 330, 440, 660, 880].forEach((f, i) => slide(f, f * 1.5, t + i * 0.05, 0.25, 0.1, 'sine')),
   gameover: (t) => [330, 262, 196].forEach((f, i) => pluck(f, t + i * 0.25, 0.4, 0.14, 'triangle')),
 };
 

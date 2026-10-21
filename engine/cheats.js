@@ -7,6 +7,7 @@ export const LEVEL_CODES = {
   3141: 5, // The Pagoda
   6660: 6, // Hell
   4200: 7, // Big Al's Liquor Store
+  1337: 8, // The Hive
 };
 
 export const levelForCode = (code) => LEVEL_CODES[String(code)] ?? null;

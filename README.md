@@ -38,6 +38,7 @@ On the title screen, the game-over screen or the pause menu, tap **🔑 ENTER CO
 | 3141 | 5. The Pagoda |
 | 6660 | 6. Hell |
 | 4200 | 7. Big Al's Liquor Store |
+| 1337 | 8. The Hive |
 
 On the web you can also type the code on a keyboard.
 
@@ -45,7 +46,7 @@ On the web you can also type the code on a keyboard.
 
 Extra lives (1UP) come from: a hidden 1UP pickup in every level (look above the gaps in the high routes, or in the barrel graveyard in the tower), life barrels, and every 25 things you collect. Lives are capped at nine; extra 1UPs past that turn into bonus points.
 
-## The five levels (and the story)
+## The levels (and the story)
 
 1. **Billy's Holler**: chickens, raccoons, skunks, chasing hounds, charging turkeys, bees. Load the truck with half the jugs.
 2. **Crash-Landed**: a UFO has crashed on the ranch. Aliens drop ⚡ ammo for the **ray gun** (found in the first barrel). Gear: ray gun, antenna helmet (double ammo), alien vest (+1 armor). Collect crystals to power the Time Booth.
@@ -64,7 +65,14 @@ Extra lives (1UP) come from: a hidden 1UP pickup in every level (look above the 
    - **The hunt for Big Al's** is a chain of clues across the whole map: a note on the outhouse points you to the **Honky Tonk** in the middle, where you learn to ask **Pete at his junkyard** far south-east, who sends you to the **dead tree** in the far north-west, where a hand-painted sign marks a **dirt road** winding deep into the woods to the store. The minimap only shows your current lead, Big Al's only appears on it when you are nearly on top of it, and each landmark is a checkpoint, so your progress survives a death.
    - **Decoys:** misleading road signs, a closed fake store (Little Al's), and carjacked farmers who sometimes know nothing at all.
    - Jugs of moonshine are scattered around (every 25 gives a life), plus four hidden 1UPs.
-   - After the win there's a cutscene at the store... and it's *to be continued*.
+   - After the win there's a cutscene at the store. A beam of green light drops out of the clouds...
+
+8. **The Hive** (a Metroid-style map, 200x60 tiles, scrolling in every direction): the aliens' mama has had enough. Billy is dropped into a dripping alien hive of connected caves, shafts, acid pools and doors, with a minimap that fills in as you explore.
+   - **Doors:** blue doors open to any shot. **Red doors only open to a rocket.** Cracked walls need real firepower (ray gun, sword or a flame ball, not corn).
+   - **Save stations** set your checkpoint and refill your armor. **Energy tanks** (two in the Hive, one in the Egg Chamber) give +1 armor for good. Acid burns and bounces you out.
+   - **Creatures:** face-huggers leap at you, xenos sprint, spitters lob acid, drones fly. **Eggs hatch a hugger when you walk up**, so shoot them from a distance and you get a **rocket** instead.
+   - **The secret:** a cracked wall in the first cavern hides a portal into **the Egg Chamber**, a whole separate map (it has its own saves, tank, creatures and a climb). At the top waits the **Queen Egg**: crack it open and harvest the **Egg-zooka**, a rocket launcher (🚀 button, or Q on a keyboard). Back in the Hive, rockets open the red door and are the only thing that hurts the Queen.
+   - **The Alien Queen** is a cross between a Giger xenomorph and a hillbilly: black chitin, a straw hat, overalls, drool and a big pair of bunny teeth. Her armor shrugs off corn, rays, sword, rush and stomps; only rockets hurt her. She whips ground waves (jump them), spits acid, pounces, and at half health screeches up more huggers. Egg pods keep appearing in her nest; shoot one for a rocket refill. Beat her and it's *to be continued* once again.
 
 Gear you miss is waiting in a loot chest at the end of each level. Gear, ammo, lives and score carry from level to level. In the tower and pagoda, Billy keeps his full knight-alien kit.
 

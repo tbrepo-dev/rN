@@ -1,4 +1,4 @@
-import { buildLevel, LEVEL_COUNT, EMPTY, CRATE, USED } from './level.js';
+import { buildLevel, buildSecret, LEVEL_COUNT, EMPTY, CRATE, USED, BREAKABLE, DOOR_BLUE, DOOR_RED, ACID, VIEW_H } from './level.js';
 import { SCENES } from './story.js';
 import { createDrive, stepDrive } from './drive.js';
 
@@ -16,6 +16,7 @@ const JUG_LIFETIME = 10;
 const LIFE_MAX = 9;
 const LIFE_EVERY = 25; // an extra life for every 25 things collected
 const TEQUILA_MAX = 3;
+export const ROCKET_MAX = 12;
 export const FED_TO_FULL = 5; // flame balls it takes to fill Pack Billy up
 
 const C = {
@@ -56,6 +57,7 @@ export const GEAR = {
   shield: { name: 'Knight Shield', slot: 'offhand', armor: 0, blurb: 'Hold to block from the front' },
   knightHelm: { name: 'Knight-Alien Helm', slot: 'head', armor: 1, blurb: '+1 armor' },
   plate: { name: 'Knight-Alien Armor', slot: 'body', armor: 1, blurb: '+1 armor' },
+  bazooka: { name: 'Egg-zooka', slot: 'launcher', armor: 0, blurb: 'Rockets crack red doors and the Queen' },
 };
 
 // speed: patrol speed (tiles/s); hp: damage to kill (a stomp does 2, cobs/rays 1, sword 2);
@@ -99,6 +101,15 @@ const ENEMY_KINDS = {
   ember: { ai: 'fly', w: 0.6, h: 0.6, hp: 1, stomp: false, fly: true },
   // Pack Billy can't be hurt. He can only be fed.
   packbilly: { ai: 'pack', speed: 3, w: 2.4, h: 2.4, edgeTurn: false, hp: 999, stomp: false, invuln: true },
+
+  // Level 8: the Hive. Eggs hatch huggers when you get close; shoot them first for a rocket.
+  hugger: { ai: 'hugger', speed: 1.6, w: 0.85, h: 0.55, edgeTurn: true, hp: 1, stomp: true },
+  xeno: { ai: 'chase', speed: 2.4, w: 0.95, h: 1.0, edgeTurn: true, hp: 2, stomp: true, ammo: 2 },
+  spitter: { ai: 'spit', speed: 0, w: 0.9, h: 0.95, edgeTurn: false, hp: 2, stomp: true, ammo: 2 },
+  egg: { ai: 'egg', speed: 0, w: 0.8, h: 0.95, edgeTurn: false, hp: 2, stomp: false, harmless: true },
+  queenegg: { ai: 'egg', speed: 0, w: 1.3, h: 1.5, edgeTurn: false, hp: 6, stomp: false, harmless: true },
+  // The Queen: black chitin, a straw hat, overalls, and bunny teeth. Only missiles hurt her.
+  queen: { ai: 'queen', speed: 1.6, w: 2.4, h: 2.8, edgeTurn: false, hp: 60, stomp: false, armored: true, score: 8000 },
 };
 
 // Starting at a later level (the secret codes) hands Billy what he would have found on the way
@@ -107,6 +118,7 @@ export function createGameAt(n) {
   if (n >= 3) ['raygun', 'antenna', 'vest'].forEach((k) => (g.gear[k] = true));
   if (n >= 4) ['sword', 'shield', 'knightHelm', 'plate'].forEach((k) => (g.gear[k] = true));
   if (n >= 3) g.ammo = 15;
+  if (n >= 8) g.lives = 5;
   if (n > 1) {
     respawn(g);
     g.mode = 'intro';
@@ -130,6 +142,16 @@ export function createGame({ enemies = true, level = 1 } = {}) {
     lives: 3,
     gear: {}, // name -> true; carried across levels
     ammo: 0,
+    rocketAmmo: 0,
+    missiles: [],
+    tanks: 0, // energy tanks found; each is +1 armor
+    shake: 0,
+    camY: 0,
+    stack: [], // levels we have stepped out of (the secret level lives on top of this)
+    prevBaz: false,
+    portalCd: 0,
+    doorMsgT: 0,
+    saveIdx: -1,
     tequila: 0, // flaming tequila drunk, ready to belch
     tequilaT: 2,
     tequilaIdx: 0,
@@ -183,6 +205,8 @@ export function loadLevel(g, n) {
   g.bossDefeated = false;
   g.truckMsgT = 0;
   g.loot = [];
+  g.stack = [];
+  g.saveIdx = -1;
   g.version++;
   respawn(g);
   if (n > 1) g.mode = 'intro';
@@ -242,7 +266,7 @@ export function startPlaying(g) {
   if (g.mode === 'intro') g.mode = 'playing';
 }
 
-export const armorMax = (g) => Object.keys(g.gear).reduce((n, k) => n + (g.gear[k] ? GEAR[k].armor : 0), 0);
+export const armorMax = (g) => Object.keys(g.gear).reduce((n, k) => n + (g.gear[k] ? GEAR[k].armor : 0), 0) + (g.tanks || 0);
 
 function newPlayer(x, floor) {
   return {
@@ -264,6 +288,7 @@ function newPlayer(x, floor) {
     throwCd: 0,
     slash: 0,
     shielding: false,
+    bazCd: 0,
     rush: 0,
     run: 0,
   };
@@ -274,6 +299,8 @@ function groundedAt(g, x, floor) {
   const row = Math.round(floor);
   return solidAt(g, Math.floor(x + 0.05), row) && solidAt(g, Math.floor(x + PLAYER_W - 0.05), row);
 }
+
+const BOSSES = new Set(['boss', 'max', 'packbilly', 'queen']);
 
 export function respawn(g) {
   if (g.level.kind === 'drive') {
@@ -305,16 +332,19 @@ export function respawn(g) {
   g.rays = [];
   g.belches = [];
   g.shots = [];
+  g.missiles = [];
   g.effects = [];
   g.prevJump = false;
   g.prevThrow = false;
   g.prevRush = false;
+  g.prevBaz = false;
   g.enemies = g.enemiesEnabled
     ? g.level.spawns
-        .filter((s) => (s.x >= g.checkpoint - 2 || ENEMY_KINDS[s.kind].always) && !((s.kind === 'boss' || s.kind === 'max' || s.kind === 'packbilly') && g.bossDefeated))
+        .filter((s) => (g.level.scrollY || s.x >= g.checkpoint - 2 || ENEMY_KINDS[s.kind].always) && !(BOSSES.has(s.kind) && g.bossDefeated) && !(s.kind === 'queenegg' && g.level.harvested))
         .map((s) => makeEnemy(s, g.level.groundY))
     : [];
   g.camX = clamp(g.player.x - g.viewW * 0.3, 0, g.level.w - g.viewW);
+  if (g.level.scrollY) g.camY = clamp(g.player.y + g.player.h / 2 - VIEW_H * 0.55, 0, g.level.h - VIEW_H);
 }
 
 function makeEnemy(s, groundY = 9) {
@@ -369,7 +399,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 function solidAt(g, tx, ty) {
   if (tx < 0 || tx >= g.level.w) return true;
   if (ty < 0 || ty >= g.level.h) return false;
-  return g.tiles[ty][tx] !== EMPTY;
+  const t = g.tiles[ty][tx];
+  return t !== EMPTY && t !== ACID;
 }
 
 // Moves a body through the tile grid. Returns {hitX, bump}.
@@ -474,6 +505,7 @@ export function equip(g, name) {
   if (g.gear[name]) return;
   g.gear[name] = true;
   if (g.player) g.player.armor += GEAR[name].armor;
+  if (name === 'bazooka') g.rocketAmmo = Math.min(ROCKET_MAX, g.rocketAmmo + 6);
   toast(g, `Equipped: ${GEAR[name].name}`);
   emit(g, 'gear');
 }
@@ -483,6 +515,9 @@ const YEEHAWS = ['Yeehaw!', 'Hoo-wee!', 'Whoa nelly!', 'Dang!'];
 export function step(g, input, dt = STEP) {
   g.time += dt;
   if (g.toast && (g.toast.t -= dt) <= 0) g.toast = null;
+  g.shake = Math.max(0, g.shake - dt);
+  g.doorMsgT = Math.max(0, g.doorMsgT - dt);
+  g.portalCd = Math.max(0, g.portalCd - dt);
   if (g.mode === 'scene' && g.scene) g.scene.t += dt;
   if (g.level.kind === 'drive') return stepDriveMode(g, input, dt);
   if (g.mode === 'dying') return stepDying(g, dt);
@@ -491,12 +526,14 @@ export function step(g, input, dt = STEP) {
   updatePlayer(g, input, dt);
   updateCobs(g, dt);
   updateRays(g, dt);
+  updateMissiles(g, dt);
   updateBelches(g, dt);
   updateEnemies(g, dt);
   updateTequila(g, dt);
   updateShots(g, dt);
   updateItems(g, dt);
   collide(g);
+  if (g.mode === 'playing') updateWorld(g);
   updateEffects(g, dt);
   if (g.pendingScene && (g.pendingScene.t -= dt) <= 0) {
     startScene(g, g.pendingScene.id);
@@ -519,6 +556,10 @@ export function step(g, input, dt = STEP) {
 
   const target = clamp(p.x + p.w / 2 - g.viewW * 0.4, 0, g.level.w - g.viewW);
   g.camX += (target - g.camX) * Math.min(1, dt * 8);
+  if (g.level.scrollY) {
+    const ty = clamp(p.y + p.h / 2 - VIEW_H * 0.55, 0, g.level.h - VIEW_H);
+    g.camY += (ty - g.camY) * Math.min(1, dt * 6);
+  }
 }
 
 const COLLECT_NAMES = { jug: 'jugs', crystal: 'crystals', coin: 'coins', fish: 'fish', soul: 'souls' };
@@ -556,7 +597,7 @@ function checkGoal(g) {
   const p = g.player;
   const gy = g.level.groundY;
   g.truckMsgT = Math.max(0, g.truckMsgT - STEP);
-  if (g.level.goalKind === 'dojo' || g.level.goalKind === 'hellgate') return; // the boss's defeat ends the level
+  if (['dojo', 'hellgate', 'queen', 'secret'].includes(g.level.goalKind)) return; // the boss's defeat ends the level
   if (g.level.goalKind === 'fridge') {
     // Grab the beer: reach the fridge on the top girder
     if (Math.abs(p.x + p.w / 2 - g.level.goalX) < 1.1 && p.onGround && Math.abs(p.y + p.h - g.level.goalFloor) < 0.2) {
@@ -586,6 +627,8 @@ function updatePlayer(g, input, dt) {
   const jumpPressed = input.jump && !g.prevJump;
   const throwPressed = input.throw && !g.prevThrow;
   const rushPressed = input.rush && !g.prevRush;
+  const bazPressed = input.baz && !g.prevBaz;
+  g.prevBaz = !!input.baz;
   g.prevJump = input.jump;
   g.prevThrow = !!input.throw;
   g.prevRush = !!input.rush;
@@ -635,16 +678,33 @@ function updatePlayer(g, input, dt) {
   p.slash = Math.max(0, p.slash - dt);
   p.belch = Math.max(0, (p.belch || 0) - dt);
   if (throwPressed && p.throwCd <= 0 && !p.shielding) fire(g, rushing);
+  p.bazCd = Math.max(0, p.bazCd - dt);
+  if (bazPressed && g.gear.bazooka && p.bazCd <= 0 && !p.shielding) fireBazooka(g);
 
   let gravity = C.gravity;
-  if (p.vy < 0 && !input.jump) gravity *= C.releaseGravity;
+  if (p.vy < 0 && !input.jump && !p.bounced) gravity *= C.releaseGravity;
   p.vy = Math.min(p.vy + gravity * dt, C.maxFall);
-  if (p.vy >= 0) p.jumping = false;
+  if (p.vy >= 0) {
+    p.jumping = false;
+    p.bounced = false;
+  }
 
   const { bump } = moveBody(g, p, dt);
   if (bump) hitTile(g, bump.tx, bump.ty);
 
   if (p.invuln > 0) p.invuln -= dt;
+  // Acid: it burns, then bounces Billy back out
+  if (g.tiles[Math.floor(p.y + p.h - 0.1)]?.[Math.floor(p.x + p.w / 2)] === ACID) {
+    p.vy = -20;
+    p.bounced = true;
+    p.airJumps = C.airJumps;
+    p.onGround = false;
+    emit(g, 'sizzle');
+    if (p.invuln <= 0) {
+      hurt(g);
+      if (g.mode !== 'playing') return;
+    }
+  }
   p.run = p.onGround && Math.abs(p.vx) > 0.5 ? p.run + Math.abs(p.vx) * dt : 0;
 
   for (const c of g.coins) {
@@ -673,7 +733,7 @@ function fire(g, triple) {
   if (g.tequila > 0) return belch(g);
   if (g.gear.sword) {
     const box = slashBox(g);
-    if (g.enemies.some((e) => e.alive && overlap(box, e)) || g.shots.some((s) => overlap(box, s))) return slash(g, box);
+    if (g.enemies.some((e) => e.alive && overlap(box, e)) || g.shots.some((s) => overlap(box, s)) || tileInBox(g, box)) return slash(g, box);
   }
   if (g.gear.raygun && g.ammo > 0) return shootRay(g, triple);
   if (g.cobs.length < C.maxCobs) throwCobs(g, triple);
@@ -699,6 +759,7 @@ function updateBelches(g, dt) {
     f.y += f.vy * dt;
     if (f.life <= 0 || f.y > g.level.h + 1 || solidAt(g, Math.floor(f.x + f.w / 2), Math.floor(f.y + f.h / 2))) {
       f.dead = true;
+      tileShot(g, Math.floor(f.x + f.w / 2), Math.floor(f.y + f.h / 2), 'flame');
       continue;
     }
     for (const e of g.enemies) {
@@ -755,6 +816,81 @@ function slash(g, box) {
   for (const e of g.enemies) if (e.alive && overlap(box, e)) damage(g, e, 2, 'sword');
   for (const s of g.shots) if (overlap(box, s)) s.dead = true;
   g.shots = g.shots.filter((s) => !s.dead);
+  for (let ty = Math.floor(box.y); ty <= Math.floor(box.y + box.h); ty++) for (let tx = Math.floor(box.x); tx <= Math.floor(box.x + box.w); tx++) tileShot(g, tx, ty, 'sword');
+}
+
+const SHOOTABLE = new Set([BREAKABLE, DOOR_BLUE, DOOR_RED]);
+function tileInBox(g, box) {
+  for (let ty = Math.floor(box.y); ty <= Math.floor(box.y + box.h); ty++) for (let tx = Math.floor(box.x); tx <= Math.floor(box.x + box.w); tx++) if (SHOOTABLE.has(g.tiles[ty]?.[tx])) return true;
+  return false;
+}
+
+// Cracked walls and doors. Blue doors open to any shot, cracked walls need real firepower (not corn),
+// and red doors only give way to a missile. Opens the whole connected door or wall.
+function tileShot(g, tx, ty, power) {
+  const t = g.tiles[ty]?.[tx];
+  if (!SHOOTABLE.has(t)) return false;
+  const ok = t === DOOR_BLUE ? true : t === DOOR_RED ? power === 'missile' : power !== 'cob';
+  if (!ok) {
+    if (g.doorMsgT <= 0) {
+      g.doorMsgT = 1.6;
+      toast(g, t === DOOR_RED ? 'Sealed tight. It needs something bigger...' : 'This wall is cracked. Hit it harder than corn!');
+      emit(g, 'block');
+    }
+    return false;
+  }
+  const stack = [[tx, ty]];
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    if (g.tiles[y]?.[x] !== t) continue;
+    g.tiles[y][x] = EMPTY;
+    stack.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+  }
+  g.version++;
+  emit(g, t === BREAKABLE ? 'break' : 'door');
+  toast(g, t === BREAKABLE ? 'The wall crumbles!' : 'The door grinds open!');
+  return true;
+}
+
+function fireBazooka(g) {
+  const p = g.player;
+  if (g.rocketAmmo <= 0) {
+    if (g.doorMsgT <= 0) {
+      g.doorMsgT = 1.2;
+      toast(g, 'Out of rockets! Shoot egg pods to find more.');
+    }
+    return;
+  }
+  g.rocketAmmo--;
+  p.bazCd = 0.55;
+  p.vx -= p.facing * 3;
+  g.missiles.push({ x: p.x + p.w / 2 + p.facing * 0.6 - 0.3, y: p.y + p.h * 0.35, w: 0.6, h: 0.3, vx: p.facing * 13, vy: 0, life: 2.2, age: 0 });
+  emit(g, 'missile');
+}
+
+function explode(g, x, y) {
+  g.effects.push({ kind: 'boom', x, y, t: 0 });
+  g.shake = 0.5;
+  emit(g, 'explode');
+  for (const e of g.enemies) {
+    if (e.alive && Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) < 2.6 + e.w / 2) damage(g, e, 10, 'missile');
+  }
+  for (let ty = Math.floor(y - 1.8); ty <= Math.floor(y + 1.8); ty++) for (let tx = Math.floor(x - 1.8); tx <= Math.floor(x + 1.8); tx++) if (Math.hypot(tx + 0.5 - x, ty + 0.5 - y) < 1.9) tileShot(g, tx, ty, 'missile');
+}
+
+function updateMissiles(g, dt) {
+  for (const m of g.missiles) {
+    m.age += dt;
+    m.life -= dt;
+    m.x += m.vx * dt;
+    const cx = m.x + m.w / 2;
+    const cy = m.y + m.h / 2;
+    if (m.life <= 0 || solidAt(g, Math.floor(cx), Math.floor(cy)) || g.enemies.some((e) => e.alive && !(ENEMY_KINDS[e.kind].fly && e.swarm) && overlap(m, e))) {
+      m.dead = true;
+      explode(g, cx, cy);
+    }
+  }
+  g.missiles = g.missiles.filter((m) => !m.dead);
 }
 
 function shootRay(g, triple) {
@@ -788,8 +924,12 @@ function updateCobs(g, dt) {
     c.age += dt;
     c.vy = Math.min(c.vy + C.cobGravity * dt, C.maxFall);
     const fallV = c.vy;
+    const vx0 = c.vx;
     const { hitX } = moveBody(g, c, dt);
-    if (hitX) c.dead = true;
+    if (hitX) {
+      c.dead = true;
+      tileShot(g, Math.floor(vx0 > 0 ? c.x + c.w + 0.1 : c.x - 0.1), Math.floor(c.y + c.h / 2), 'cob');
+    }
     if (c.onGround && fallV > 1) {
       c.bounces++;
       if (c.bounces > 2) c.dead = true;
@@ -804,7 +944,12 @@ function updateRays(g, dt) {
   for (const r of g.rays) {
     r.life -= dt;
     r.x += r.vx * dt;
-    if (r.life <= 0 || solidAt(g, Math.floor(r.x + r.w / 2), Math.floor(r.y + r.h / 2))) r.dead = true;
+    const rx = Math.floor(r.x + r.w / 2);
+    const ry = Math.floor(r.y + r.h / 2);
+    if (r.life <= 0 || solidAt(g, rx, ry)) {
+      r.dead = true;
+      tileShot(g, rx, ry, 'ray');
+    }
     if (r.dead) continue;
     for (const e of g.enemies) {
       if (!e.alive || r.hitSet?.has(e) || !overlap(r, e)) continue;
@@ -873,7 +1018,12 @@ function updateEnemies(g, dt) {
       e.squish += dt;
       continue;
     }
-    if (!e.awake) {
+    if (g.level.scrollY) {
+      // Metroid-style: things only stir when Billy is in the neighborhood
+      const near2 = Math.abs(e.x - p.x) < g.viewW * 0.75 + 4 && Math.abs(e.y - p.y) < VIEW_H + 4;
+      if (!near2) continue;
+      e.awake = true;
+    } else if (!e.awake) {
       if (e.x < right) e.awake = true;
       else continue;
     }
@@ -982,6 +1132,52 @@ function updateEnemies(g, dt) {
           }
         }
         if (Math.abs(dx) < 1.2) speed = 0;
+        break;
+      case 'hugger': // face-hugger: scuttles, then leaps at you
+        e.cd -= dt;
+        if (e.onGround && e.cd <= 0 && near && Math.abs(dx) < 5.5) {
+          e.dir = toward;
+          e.vy = -14;
+          e.cd = 1.5;
+          e.leaping = true;
+        }
+        if (e.onGround && e.vy >= 0) e.leaping = false;
+        if (e.leaping) {
+          speed = 7;
+          edgeTurn = false;
+        } else if (near && Math.abs(dx) < 8) e.dir = toward;
+        break;
+      case 'spit': // spitter: lobs arcs of acid
+        e.dir = toward;
+        e.shootT -= dt;
+        e.warn = e.shootT < 0.4 && near && Math.abs(dx) < 11;
+        if (e.shootT <= 0) {
+          e.shootT = 2.4;
+          if (Math.abs(dx) < 11 && Math.abs(p.y - e.y) < 6) {
+            spawnShot(g, e.x + e.w / 2, e.y + 0.2, clamp(dx * 0.85, -8, 8), -9, 'acid', 18);
+            emit(g, 'enemyshot');
+          }
+        }
+        break;
+      case 'egg': // sits quietly until you walk up, then hatches a hugger
+        e.warn = false;
+        if (!e.hatched && !e.noHatch && k.hp < 6 && near && Math.abs(dx) < 5) {
+          e.hatchT = (e.hatchT || 0) + dt;
+          e.warn = true;
+          if (e.hatchT > 0.6) {
+            e.hatched = true;
+            const h = makeEnemy({ kind: 'hugger', x: e.x, y: e.y + e.h }, g.level.groundY);
+            h.awake = true;
+            h.dir = toward;
+            h.vy = -6;
+            g.enemies.push(h);
+            emit(g, 'hatch');
+          }
+        }
+        break;
+      case 'queen':
+        speed = updateQueen(g, e, dt, k, dx, toward);
+        edgeTurn = false;
         break;
       case 'roll': // Honkey's barrels: roll one way, flip direction after dropping to a lower girder
         edgeTurn = false;
@@ -1136,6 +1332,98 @@ function updateMax(g, e, dt, k, dx, toward) {
   return speed;
 }
 
+// The Alien Queen: armored in black chitin; only rockets hurt. Cycles tail-whip waves, acid spit and a
+// pounce, and once she is half dead she screeches up a brood of huggers. Pods keep appearing so Billy
+// can restock rockets mid-fight.
+function updateQueen(g, e, dt, k, dx, toward) {
+  const phase2 = e.hp <= k.hp / 2;
+  const floorY = e.y + e.h;
+  const attacks = phase2 ? ['tail', 'spit', 'leap', 'screech'] : ['tail', 'spit', 'leap'];
+  let speed = 0;
+  e.podT = (e.podT ?? 5) - dt;
+  if (e.podT <= 0) {
+    e.podT = phase2 ? 7 : 9;
+    const spots = g.level.eggSpots || [];
+    const pods = g.enemies.filter((o) => o.kind === 'egg' && o.alive).length;
+    if (spots.length && pods < 2) {
+      const sp = spots[(e.podIdx = ((e.podIdx ?? -1) + 1)) % spots.length];
+      const pod = makeEnemy({ kind: 'egg', x: sp.x, y: sp.floor }, g.level.groundY);
+      pod.noHatch = true;
+      pod.awake = true;
+      g.enemies.push(pod);
+      floatText(g, sp.x, sp.floor - 2, 'Egg pod!');
+    }
+  }
+  if (e.state === 'walk' || e.state === 'dash' || e.state === 'rest') {
+    e.warn = false;
+    e.dir = toward;
+    speed = k.speed * (phase2 ? 1.5 : 1);
+    e.cd -= dt;
+    if (Math.abs(dx) < 3) speed = 0;
+    if (e.cd <= 0) {
+      e.atk = attacks[(e.atkIdx = (e.atkIdx ?? -1) + 1) % attacks.length];
+      e.state = 'wind';
+      e.stateT = e.atk === 'leap' ? 0.7 : 0.55;
+    }
+  } else if (e.state === 'wind') {
+    e.warn = true;
+    e.dir = toward;
+    e.stateT -= dt;
+    if (e.stateT <= 0) {
+      e.warn = false;
+      if (e.atk === 'tail') {
+        for (const d of [-1, 1]) g.shots.push({ kind: 'wave', x: e.x + e.w / 2 - 0.4 + d * 1.4, y: floorY - 0.55, w: 0.8, h: 0.55, vx: d * 7.5, vy: 0, gravity: 0, life: 2.6 });
+        floatText(g, e.x, e.y - 0.8, 'WHAP!');
+        emit(g, 'slam');
+        e.state = 'rest';
+        e.stateT = 0.5;
+        e.cd = phase2 ? 0.9 : 1.5;
+      } else if (e.atk === 'spit') {
+        for (const vy of [-4, -8, -12]) spawnShot(g, e.x + e.w / 2 + e.dir, e.y + 0.5, e.dir * (phase2 ? 9 : 7.5), vy, 'acid', 16);
+        emit(g, 'enemyshot');
+        e.state = 'rest';
+        e.cd = phase2 ? 0.9 : 1.5;
+      } else if (e.atk === 'leap') {
+        e.state = 'leap';
+        e.vy = -17;
+        e.leapDir = toward;
+        e.leapAir = false;
+      } else {
+        floatText(g, e.x, e.y - 0.8, 'SKREEEE!');
+        emit(g, 'screech');
+        g.shake = 0.6;
+        const huggers = g.enemies.filter((o) => o.kind === 'hugger' && o.alive).length;
+        for (let i = 0; i < 2 && huggers + i < 4; i++) {
+          const h = makeEnemy({ kind: 'hugger', x: e.x + (i ? e.w : -0.8), y: floorY }, g.level.groundY);
+          h.awake = true;
+          h.vy = -8;
+          g.enemies.push(h);
+        }
+        e.state = 'rest';
+        e.cd = 1.3;
+      }
+    }
+  } else if (e.state === 'leap') {
+    e.dir = e.leapDir;
+    speed = 6;
+    if (!e.onGround) e.leapAir = true;
+    else if (e.leapAir) {
+      e.leapAir = false;
+      for (const d of [-1, 1]) g.shots.push({ kind: 'wave', x: e.x + e.w / 2 - 0.4 + d * 1.4, y: floorY - 0.55, w: 0.8, h: 0.55, vx: d * 8, vy: 0, gravity: 0, life: 2.6 });
+      floatText(g, e.x, e.y - 0.8, 'THUD!');
+      emit(g, 'slam');
+      g.shake = 0.5;
+      e.state = 'rest';
+      e.cd = phase2 ? 1 : 1.7;
+    }
+  }
+  const minX = e.ox - 24;
+  const maxX = e.ox + 9;
+  if (e.x < minX && e.dir < 0) speed = 0;
+  if (e.x + e.w > maxX && e.dir > 0) speed = 0;
+  return speed;
+}
+
 // The Witch Queen paces her arena and throws fans of orbs, faster once hurt.
 function updateBoss(g, e, dt, k) {
   const p = g.player;
@@ -1196,6 +1484,130 @@ function updateFlyer(g, e, dt, k) {
   }
 }
 
+// Save stations, energy tanks, portals and the map. Metroid things.
+function updateWorld(g) {
+  const L = g.level;
+  const p = g.player;
+  const cx = p.x + p.w / 2;
+  let near = -1;
+  (L.saves || []).forEach((sv, i) => {
+    if (Math.abs(cx - (sv.x + 0.5)) < 1 && p.onGround && Math.abs(p.y + p.h - sv.floor) < 0.2) near = i;
+  });
+  if (near >= 0 && near !== g.saveIdx) {
+    const sv = L.saves[near];
+    g.checkpoint = sv.x;
+    g.checkpointFloor = sv.floor;
+    p.armor = armorMax(g);
+    if (g.gear.bazooka) g.rocketAmmo = Math.max(g.rocketAmmo, 6);
+    toast(g, 'Game saved. Armor restored.');
+    floatText(g, p.x - 0.4, p.y - 1, 'SAVED');
+    emit(g, 'save');
+  }
+  g.saveIdx = near;
+  for (const t of L.tanks || []) {
+    if (!t.taken && Math.abs(t.x + 0.5 - cx) < 0.8 && Math.abs(t.y + 0.5 - (p.y + p.h / 2)) < 0.5 + p.h / 2) {
+      t.taken = true;
+      g.tanks++;
+      p.armor++;
+      g.score += 500;
+      toast(g, 'ENERGY TANK! +1 armor, forever.');
+      floatText(g, t.x, t.y - 0.6, 'TANK!');
+      emit(g, 'tank');
+    }
+  }
+  if (g.portalCd <= 0) {
+    for (const pt of L.portals || []) {
+      if (overlap(p, pt)) {
+        if (pt.to === 'parent') leaveSecret(g);
+        else enterSecret(g, pt.to);
+        return;
+      }
+    }
+  }
+  if (L.scrollY) {
+    const ex = Math.floor(cx);
+    const ey = Math.floor(p.y + p.h / 2);
+    if (ex !== g.expX || ey !== g.expY || g.expLevel !== L) {
+      g.expX = ex;
+      g.expY = ey;
+      g.expLevel = L;
+      L.explored ??= new Uint8Array(L.w * L.h);
+      L.exploredN ??= 0;
+      for (let y = Math.max(0, ey - 5); y <= Math.min(L.h - 1, ey + 5); y++) {
+        for (let x = Math.max(0, ex - 9); x <= Math.min(L.w - 1, ex + 9); x++) {
+          if (!L.explored[y * L.w + x]) {
+            L.explored[y * L.w + x] = 1;
+            L.exploredN++;
+          }
+        }
+      }
+    }
+  }
+}
+
+// The secret level is a real second map. We stash the main one on a stack and bring it back on exit.
+export function enterSecret(g, id) {
+  g.stack.push({
+    level: g.level,
+    tiles: g.tiles,
+    coins: g.coins,
+    enemies: g.enemies,
+    items: g.items,
+    checkpoint: g.checkpoint,
+    checkpointFloor: g.checkpointFloor,
+    bossDefeated: g.bossDefeated,
+    saveIdx: g.saveIdx,
+    camX: g.camX,
+    camY: g.camY,
+  });
+  const lv = buildSecret(id);
+  g.level = lv;
+  g.tiles = lv.tiles;
+  g.coins = lv.coins;
+  g.checkpoint = lv.startX;
+  g.checkpointFloor = lv.groundY;
+  g.bossDefeated = false;
+  g.saveIdx = -1;
+  g.version++;
+  const armor = g.player.armor;
+  respawn(g);
+  g.player.armor = Math.max(armor, g.player.armor);
+  g.portalCd = 1.2;
+  toast(g, lv.name);
+  emit(g, 'portal');
+}
+
+export function leaveSecret(g) {
+  const snap = g.stack.pop();
+  if (!snap) return;
+  const portal = g.level.portals.find((pt) => pt.to === 'parent');
+  const from = g.level;
+  g.level = snap.level;
+  g.tiles = snap.tiles;
+  g.coins = snap.coins;
+  g.enemies = snap.enemies;
+  g.items = snap.items;
+  g.checkpoint = snap.checkpoint;
+  g.checkpointFloor = snap.checkpointFloor;
+  g.bossDefeated = snap.bossDefeated;
+  g.saveIdx = -1;
+  g.camX = snap.camX;
+  g.camY = snap.camY;
+  g.version++;
+  g.cobs = [];
+  g.rays = [];
+  g.shots = [];
+  g.missiles = [];
+  const entry = g.level.portals.find((pt) => pt.to === from.id || pt.to === 'egg');
+  const p = g.player;
+  p.x = entry.x - 1.2;
+  p.y = entry.y + entry.h - p.h;
+  p.vx = 0;
+  p.vy = 0;
+  g.portalCd = 1.2;
+  emit(g, 'portal');
+}
+
 function updateItems(g, dt) {
   for (const it of g.items) {
     it.age += dt;
@@ -1237,6 +1649,14 @@ function collide(g) {
     }
     if (it.kind === 'life') {
       addLife(g, it.x, it.y - 0.5);
+      return false;
+    }
+    if (it.kind === 'rocket') {
+      if (g.rocketAmmo >= ROCKET_MAX && g.gear.bazooka) return true;
+      g.rocketAmmo = Math.min(ROCKET_MAX, g.rocketAmmo + 2);
+      floatText(g, it.x, it.y - 0.3, '+2 rockets');
+      g.score += 50;
+      emit(g, 'ammo');
       return false;
     }
     if (it.kind === 'tequila') {
@@ -1294,7 +1714,8 @@ function collide(g) {
   for (const e of g.enemies) {
     if (!e.alive || !overlap(p, e)) continue;
     const k = ENEMY_KINDS[e.kind];
-    if (e.full) continue; // a full Pack Billy is harmless
+    if (e.full || k.harmless) continue; // a full Pack Billy is harmless, and so are eggs
+    if (p.rush > 0 && k.armored) continue; // rushing past her is safe but does no good
     if (p.rush > 0) {
       // Rush makes Billy invincible: critters (even bees) get plowed through
       damage(g, e, 99, 'rush');
@@ -1332,6 +1753,18 @@ function damage(g, e, dmg, how) {
   const k = ENEMY_KINDS[e.kind];
   if (!e.alive || e.iframes > 0 || k.invuln) return;
   if (e.kind === 'max' && e.state === 'rest') dmg *= 2; // winded and wide open
+  if (k.armored) {
+    // Chitin plate: stomps and rushing do nothing; most other shots barely scratch it; missiles hurt
+    if (how === 'stomp' || how === 'rush') return;
+    if (how !== 'missile') {
+      dmg *= 0.1;
+      if (g.time - (e.clangT ?? -9) > 0.5) {
+        e.clangT = g.time;
+        emit(g, 'block');
+        floatText(g, e.x + e.w / 2, e.y - 0.3, 'Clang!');
+      }
+    } else e.iframes = 0.4;
+  }
   e.hp -= dmg;
   if (e.kind === 'boss' || e.kind === 'max') e.iframes = 0.55;
   if (e.hp <= 0) {
@@ -1357,6 +1790,29 @@ function kill(g, e, squished) {
     g.bossDefeated = true;
     toast(g, e.kind === 'max' ? 'Max is down for the count!' : 'The Witch Queen is defeated! The gate is open!');
     if (g.level.bossScene) g.pendingScene = { id: g.level.bossScene, t: 2 };
+  }
+  if (e.kind === 'queen') {
+    g.bossDefeated = true;
+    g.shake = 1;
+    toast(g, 'The Alien Queen is down!');
+    for (const o of g.enemies) {
+      if (o !== e && o.alive) {
+        o.alive = false;
+        o.squish = 0.3;
+      }
+    }
+    if (g.level.bossScene) g.pendingScene = { id: g.level.bossScene, t: 2.6 };
+  }
+  if (e.kind === 'egg' && !e.hatched) {
+    g.items.push({ kind: 'rocket', x: e.x + e.w / 2 - 0.4, y: e.y + e.h - 0.8, w: 0.8, h: 0.8, dir: 0, vx: 0, vy: -5, age: 0 });
+    floatText(g, e.x, e.y - 0.6, 'Rocket!');
+  }
+  if (e.kind === 'queenegg') {
+    g.level.harvested = true;
+    g.items.push({ kind: 'gear', gear: 'bazooka', x: e.x + e.w / 2 - 0.4, y: e.y + e.h - 0.9, w: 0.8, h: 0.9, dir: 0, vx: 0, vy: -6, age: 0 });
+    toast(g, 'The Queen Egg cracks open... something shiny is inside!');
+    g.shake = 0.5;
+    emit(g, 'hatch');
   }
   if (k.ammo) {
     const n = k.ammo * (g.gear.antenna ? 2 : 1);
