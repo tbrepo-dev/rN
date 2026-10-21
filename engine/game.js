@@ -1,5 +1,6 @@
 import { buildLevel, LEVEL_COUNT, EMPTY, CRATE, USED } from './level.js';
 import { SCENES } from './story.js';
+import { createDrive, stepDrive } from './drive.js';
 
 export { LEVEL_COUNT };
 export const STEP = 1 / 60;
@@ -120,6 +121,8 @@ export function createGame({ enemies = true, level = 1 } = {}) {
     tequilaT: 2,
     tequilaIdx: 0,
     checkpoint: 2,
+    drive: null,
+    driveCheckpoint: null,
     checkpointFloor: 9,
     checkpointHit: false,
     collected: 0,
@@ -163,6 +166,7 @@ export function loadLevel(g, n) {
   g.checkpointHit = false;
   g.scene = null;
   g.pendingScene = null;
+  g.driveCheckpoint = null;
   g.bossDefeated = false;
   g.truckMsgT = 0;
   g.loot = [];
@@ -259,6 +263,22 @@ function groundedAt(g, x, floor) {
 }
 
 export function respawn(g) {
+  if (g.level.kind === 'drive') {
+    g.player = newPlayer(2, 9); // only carries armor for hurt()
+    g.player.armor = armorMax(g);
+    g.mode = 'playing';
+    g.deathT = 0;
+    g.items = [];
+    g.cobs = [];
+    g.rays = [];
+    g.belches = [];
+    g.shots = [];
+    g.effects = [];
+    g.enemies = [];
+    g.prevRush = false;
+    g.drive = createDrive(g.level, { traffic: g.enemiesEnabled, cops: g.enemiesEnabled, respawn: g.driveCheckpoint });
+    return;
+  }
   let x = g.checkpoint;
   for (let i = 0; i < 60 && x > 0 && !groundedAt(g, x, g.checkpointFloor); i++) x -= 1;
   if (!groundedAt(g, x, g.checkpointFloor)) x = g.level.startX;
@@ -451,6 +471,7 @@ export function step(g, input, dt = STEP) {
   g.time += dt;
   if (g.toast && (g.toast.t -= dt) <= 0) g.toast = null;
   if (g.mode === 'scene' && g.scene) g.scene.t += dt;
+  if (g.level.kind === 'drive') return stepDriveMode(g, input, dt);
   if (g.mode === 'dying') return stepDying(g, dt);
   if (g.mode !== 'playing') return;
 
@@ -488,6 +509,35 @@ export function step(g, input, dt = STEP) {
 }
 
 const COLLECT_NAMES = { jug: 'jugs', crystal: 'crystals', coin: 'coins', fish: 'fish', soul: 'souls' };
+
+// Level 7 plays differently: the whole level is a top-down open world (see drive.js)
+function stepDriveMode(g, input, dt) {
+  if (g.mode === 'dying') {
+    g.deathT += dt;
+    if (g.deathT > 1.8) {
+      g.lives--;
+      if (g.lives <= 0) {
+        g.mode = 'gameover';
+        emit(g, 'gameover');
+      } else respawn(g);
+    }
+    return;
+  }
+  if (g.mode !== 'playing') return;
+  stepDrive(g, input, dt, {
+    collectJug: () => collectJug(g),
+    addLife: () => addLife(g),
+    hurt: () => hurt(g),
+    die: () => die(g),
+    win: () => win(g),
+    emit: (name) => emit(g, name),
+    toast: (text) => toast(g, text),
+    mode: () => g.mode,
+    setCheckpoint: (pt) => {
+      g.driveCheckpoint = pt;
+    },
+  });
+}
 
 function checkGoal(g) {
   const p = g.player;

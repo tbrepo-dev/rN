@@ -26,6 +26,8 @@ const MUSIC = {
   medieval: { prog: ['Dm', 'Dm', 'Bb', 'C', 'Dm', 'Bb', 'Am', 'Dm'], roll: [0, 2, 1, 3, 2, 1, 3, 2], bpm: 104, type: 'triangle', oct: 1, vol: 1.7 },
   // Honkey's tower: a jumpy, urgent ostinato
   tower: { prog: ['Am', 'Am', 'E', 'E', 'Am', 'Am', 'F', 'E'], roll: [0, 3, 0, 3, 1, 3, 2, 3], bpm: 168, type: 'square', oct: 1, vol: 0.5 },
+  // Hick Town: fast bluegrass for a getaway
+  town: { prog: ['G', 'G', 'C', 'G', 'D', 'D', 'G', 'G'], roll: [0, 3, 2, 1, 3, 2, 1, 2], bpm: 176, type: 'sawtooth', oct: 1, vol: 0.9 },
   // Hell: a low, pounding minor ostinato
   hell: { prog: ['Em', 'Em', 'F', 'Em', 'Em', 'F', 'D', 'Em'], roll: [0, 0, 2, 0, 3, 0, 2, 1], bpm: 140, type: 'sawtooth', oct: 0.5, vol: 1.2 },
   // Pagoda: koto-like plucks
@@ -157,6 +159,28 @@ const SFX = {
     slide(110, 40, t, 0.7, 0.3, 'sawtooth');
     slide(70, 35, t + 0.1, 0.6, 0.25, 'square');
   },
+  honk: (t) => {
+    slide(330, 330, t, 0.16, 0.12, 'square');
+    slide(415, 415, t, 0.16, 0.1, 'square');
+  },
+  crash: (t) => {
+    slide(220, 40, t, 0.25, 0.28, 'sawtooth');
+    slide(1800, 200, t, 0.08, 0.1, 'square');
+  },
+  boom: (t) => {
+    slide(140, 30, t, 0.7, 0.35, 'sawtooth');
+    slide(300, 50, t, 0.5, 0.25, 'square');
+  },
+  siren: (t) => {
+    slide(600, 900, t, 0.3, 0.1, 'sawtooth');
+    slide(900, 600, t + 0.3, 0.3, 0.1, 'sawtooth');
+  },
+  carjack: (t) => {
+    slide(900, 200, t, 0.18, 0.15, 'square');
+    pluck(660, t + 0.12, 0.2, 0.1, 'triangle');
+  },
+  enter: (t) => slide(200, 120, t, 0.08, 0.14, 'square'),
+  exit: (t) => slide(160, 220, t, 0.08, 0.14, 'square'),
   gameover: (t) => [330, 262, 196].forEach((f, i) => pluck(f, t + i * 0.25, 0.4, 0.14, 'triangle')),
 };
 

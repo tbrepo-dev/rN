@@ -4,8 +4,8 @@ import { SCENES } from '../engine/story';
 import { GEAR } from '../engine/game';
 import { Character, Jinxy, gearEmoji } from './Sprites';
 
-const NAMES = { billy: 'Billy', wizard: 'Merlinzo', jinxy: 'Jinxy', devil: 'The Devil', packbilly: 'Pack Billy', narrator: '', sign: '' };
-const NAME_COLORS = { billy: '#3d7be0', wizard: '#8a4fd1', jinxy: '#2aa6a6', devil: '#c8321e', packbilly: '#d8a800' };
+const NAMES = { billy: 'Billy', wizard: 'Merlinzo', jinxy: 'Jinxy', devil: 'The Devil', packbilly: 'Pack Billy', bigal: 'Big Al', narrator: '', sign: '' };
+const NAME_COLORS = { billy: '#3d7be0', wizard: '#8a4fd1', jinxy: '#2aa6a6', devil: '#c8321e', packbilly: '#d8a800', bigal: '#8a2a7a' };
 const shadow = { textShadowColor: 'rgba(0,0,0,0.65)', textShadowRadius: 3, textShadowOffset: { width: 1, height: 2 } };
 
 // Who is on stage at line `idx`: the last cast set at or before it
@@ -131,6 +131,20 @@ function Backdrop({ bg, w, h, t }) {
           <Text style={{ position: 'absolute', left: w * 0.04, top: h * 0.3, fontSize: 36, opacity: 0.8 }}>🔥</Text>
           <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, bottom: 0, backgroundColor: '#6aaa64' }} />
           <View style={{ position: 'absolute', left: 0, right: 0, top: floorY + 10, bottom: 0, backgroundColor: '#8a5a33' }} />
+        </View>
+      );
+    case 'store':
+      return (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#3a2416' }]} />
+          {[0.12, 0.3, 0.48].map((f, r) => (
+            <View key={f} style={{ position: 'absolute', left: 0, right: 0, top: h * f, height: h * 0.14, backgroundColor: '#6b4428', borderTopWidth: 3, borderTopColor: '#2a190d' }}>
+              <Text style={{ fontSize: 30, letterSpacing: 8, paddingLeft: 12 }}>{['🍾🥃🍺🍷🍾🥃🍺🍷🍾🥃🍺🍷🍾🥃🍺🍷', '🥃🍺🍷🍾🥃🍺🍷🍾🥃🍺🍷🍾🥃🍺🍷🍾', '🍺🍷🍾🥃🍺🍷🍾🥃🍺🍷🍾🥃🍺🍷🍾🥃'][r]}</Text>
+            </View>
+          ))}
+          <Text style={{ position: 'absolute', left: w * 0.3, top: 6, fontSize: 22, fontWeight: '900', color: '#ff5ad2', letterSpacing: 3, textShadowColor: '#ff5ad2', textShadowRadius: 10 }}>BIG AL'S LIQUOR</Text>
+          <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, bottom: 0, backgroundColor: '#8a5a33' }} />
+          <View style={{ position: 'absolute', left: w * 0.5 - w * 0.1, width: w * 0.55, top: floorY - 14, height: 22, backgroundColor: '#5a3a20', borderWidth: 3, borderColor: '#2a190d' }} />
         </View>
       );
     case 'home':

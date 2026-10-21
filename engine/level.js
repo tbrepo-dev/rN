@@ -1,3 +1,5 @@
+import { buildTown } from './town.js';
+
 // Tile types
 export const EMPTY = 0;
 export const GROUND = 1;
@@ -598,8 +600,8 @@ function buildHell() {
   });
 }
 
-export const LEVEL_COUNT = 6;
-const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell];
+export const LEVEL_COUNT = 7;
+const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell, buildTown];
 
 export function buildLevel(n = 1) {
   return BUILDERS[n - 1]();

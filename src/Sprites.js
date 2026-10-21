@@ -1113,6 +1113,7 @@ export function Character({ who, size, gear, fire, t = 0 }) {
       </View>
     );
   }
+  if (who === 'bigal') return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.1 }}>🧔‍♂️</Text>;
   if (who === 'devil') return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.1 }}>😈</Text>;
   if (who === 'packbilly') return <PackBilly D={size * 1.2} open={0.5 + 0.5 * Math.sin(t * 10)} t={t} />;
   if (who === 'wizard') return <Text style={{ fontSize: size * 0.95, lineHeight: size * 1.1 }}>🧙‍♂️</Text>;

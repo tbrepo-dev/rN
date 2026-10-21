@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { createGame, step, STEP, SHINE_MAX, AMMO_MAX, GEAR, LEVEL_COUNT, continueGame, startPlaying, loadLevel, advanceScene, chooseScene, startScene } from './engine/game';
 import { Billy, Critter, Cob, Ray, Shot, Jug, OneUp, GearItem, Tile, Ground, Emoji, Booth, CastleGate, Fridge, Tequila, FlameBall, HellGate, gearEmoji } from './src/Sprites';
 import { SceneView, EndingView } from './src/Scenes';
+import { DriveView } from './src/Drive';
 import { initAudio, play, toggleMute, isMuted, setMusicTheme } from './src/sound';
 
 
@@ -14,6 +15,7 @@ const THEME = {
   tower: { sky: '#241a3f', icon: '🍺', checkpoint: '🔔', hills: ['#2d2150', '#2d2150'] },
   japan: { sky: '#f6a5b0', icon: '🐟', checkpoint: '⛩️', hills: ['#b58aa5', '#9a7aa0'] },
   hell: { sky: '#240606', icon: '👻', checkpoint: '⛓️', hills: ['#4a120e', '#33100c'] },
+  town: { sky: '#78b05a', icon: '🏺', checkpoint: '🚩', hills: ['#78b05a', '#78b05a'] },
 };
 
 const STORY = {
@@ -28,6 +30,10 @@ const STORY = {
   4: {
     title: "THE WIZARD'S FRIDGE",
     text: "Climb the girders to the top of the tower while Honkey Kong, the albino ape in overalls, rolls barrels down at you.\nJump them, shoot them, slash them or block them, then grab the wizard's beer from the fridge!",
+  },
+  7: {
+    title: "BIG AL'S LIQUOR STORE",
+    text: "Billy climbs off the toilet, singed and thirsty.\nBig Al's Liquor Store is out there somewhere. Steal a ride (a pickup, a tractor or a trash truck), drive around Hick Town, and find it. Watch out for the cops!",
   },
   6: {
     title: 'HELL',
@@ -260,7 +266,7 @@ export default function App() {
   // Keyboard (web / simulator with hardware keyboard)
   useEffect(() => {
     if (Platform.OS !== 'web') return;
-    const map = { ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ArrowUp: 'jump', w: 'jump', ' ': 'jump', z: 'jump', x: 'throw', j: 'throw', c: 'rush', k: 'rush', v: 'shield', b: 'shield' };
+    const map = { ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ArrowUp: 'jump', w: 'jump', ' ': 'jump', z: 'jump', x: 'throw', j: 'throw', c: 'rush', k: 'rush', e: 'rush', v: 'shield', b: 'shield', ArrowDown: 'throw', s: 'throw' };
     const on = (v) => (e) => {
       const k = map[e.key];
       if (k) {
@@ -298,7 +304,7 @@ export default function App() {
     ['throw', throwC, 1.15],
     ['rush', shineC, 1.2],
   ];
-  if (g.gear.shield) actions.push(['shield', shieldC, 1.25]);
+  if (g.gear.shield && level.kind !== 'drive') actions.push(['shield', shieldC, 1.25]);
 
   // Multi-touch: left cluster = ◀ ▶, right cluster = JUMP / FIRE / SHINE / SHIELD.
   // A touch goes to whichever button it is closest to (relative to its size).
@@ -336,6 +342,9 @@ export default function App() {
   const armor = Math.max(0, p.armor);
   const useRay = g.gear.raygun && g.ammo > 0;
   const useFlame = g.tequila > 0;
+  const isDrive = level.kind === 'drive';
+  const D = g.drive;
+  const prompt = isDrive ? D.prompt : null;
   const gearIcons = Object.keys(g.gear).filter((k) => g.gear[k]);
   const bossAlive = level.boss && g.enemiesEnabled && !g.bossDefeated;
   const signText =
@@ -350,9 +359,10 @@ export default function App() {
   return (
     <View style={[styles.root, { backgroundColor: th.sky }]} onTouchStart={onTouches} onTouchMove={onTouches} onTouchEnd={onTouches} onTouchCancel={onTouches}>
       <StatusBar hidden />
-      <Background camX={g.camX} ts={ts} theme={theme} time={g.time} groundY={GROUND_Y} level={level} />
+      {isDrive && <DriveView g={g} width={width} height={height} />}
+      {!isDrive && <Background camX={g.camX} ts={ts} theme={theme} time={g.time} groundY={GROUND_Y} level={level} />}
 
-      <View style={{ position: 'absolute', left: 0, top: topPad, width: level.w * ts, height: height - topPad, transform: [{ translateX: camPx }] }} pointerEvents="none">
+      {!isDrive && <View style={{ position: 'absolute', left: 0, top: topPad, width: level.w * ts, height: height - topPad, transform: [{ translateX: camPx }] }} pointerEvents="none">
         <Scenery level={level} ts={ts} />
         <Terrain tiles={g.tiles} level={level} ts={ts} version={g.version} theme={theme} />
         {level.goalKind === 'booth' && <Booth x={level.goalX - 0.15} y={GROUND_Y - 2.6} ts={ts} ready={g.jugs >= level.goalJugs} t={g.time} />}
@@ -390,7 +400,7 @@ export default function App() {
             </Text>
           )
         )}
-      </View>
+      </View>}
 
       {topPad > 0 && <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: topPad, backgroundColor: 'rgba(0,0,0,0.4)' }} pointerEvents="none" />}
       {/* HUD */}
@@ -433,9 +443,9 @@ export default function App() {
         <View style={styles.controls} pointerEvents="none">
           <View style={[styles.btn, { left: leftC.x - leftC.r, opacity: inp.left ? 0.8 : 0.4 }]}><Text style={styles.btnText}>◀</Text></View>
           <View style={[styles.btn, { left: rightC.x - rightC.r, opacity: inp.right ? 0.8 : 0.4 }]}><Text style={styles.btnText}>▶</Text></View>
-          <View style={[styles.btn, styles.jump, { left: jumpC.x - jumpC.r, top: jumpC.y - jumpC.r, bottom: undefined, opacity: inp.jump ? 0.8 : 0.4 }]}><Text style={styles.btnText}>JUMP</Text></View>
+          <View style={[styles.btn, styles.jump, { left: jumpC.x - jumpC.r, top: jumpC.y - jumpC.r, bottom: undefined, opacity: inp.jump ? 0.8 : 0.4 }]}><Text style={styles.btnText}>{isDrive ? (D.player.vehicle ? 'GAS' : 'WALK') : 'JUMP'}</Text></View>
           <View style={[styles.btn, { left: throwC.x - throwC.r, top: throwC.y - throwC.r, bottom: undefined, width: throwC.r * 2, height: throwC.r * 2, borderRadius: throwC.r, opacity: inp.throw ? 0.8 : 0.45, borderWidth: useRay || useFlame ? 3 : 0, borderColor: useFlame ? '#ff8a2a' : '#58e07a' }]}>
-            <Text style={{ fontSize: useRay || useFlame ? 26 : 30 }}>{useFlame ? '🔥' : useRay ? '🔫' : '🌽'}</Text>
+            <Text style={{ fontSize: useRay || useFlame ? 26 : 30 }}>{isDrive ? '🛑' : useFlame ? '🔥' : useRay ? '🔫' : '🌽'}</Text>
             {useFlame ? <Text style={[styles.btnText, { fontSize: 11 }]}>BELCH ×{g.tequila}</Text> : useRay && <Text style={[styles.btnText, { fontSize: 11 }]}>⚡{g.ammo}</Text>}
             {g.gear.sword && <Text style={{ position: 'absolute', top: 2, right: 6, fontSize: 14 }}>🗡️</Text>}
           </View>
@@ -451,15 +461,16 @@ export default function App() {
                 borderRadius: shineC.r,
                 overflow: 'hidden',
                 borderWidth: 3,
-                borderColor: meter >= 1 || rushing ? '#9dff6a' : '#e8c35a',
+                borderColor: isDrive ? (prompt ? '#9dff6a' : '#e8c35a') : meter >= 1 || rushing ? '#9dff6a' : '#e8c35a',
                 opacity: inp.rush ? 0.9 : meter >= 1 ? 0.85 : 0.55,
               },
             ]}
           >
-            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${(rushing ? p.rush / 6 : meter) * 100}%`, backgroundColor: rushing || meter >= 1 ? '#5fd13a' : '#a86a32' }} />
-            <Text style={[styles.btnText, { fontSize: 11 }]}>{rushing ? 'RUSH!' : meter >= 1 ? 'RUSH' : 'SHINE'}</Text>
+            {!isDrive && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${(rushing ? p.rush / 6 : meter) * 100}%`, backgroundColor: rushing || meter >= 1 ? '#5fd13a' : '#a86a32' }} />}
+            {isDrive && <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: prompt ? '100%' : '0%', backgroundColor: prompt === 'CARJACK' ? '#e0402a' : '#5fd13a', opacity: 0.8 }} />}
+            <Text style={[styles.btnText, { fontSize: isDrive ? 10 : 11 }]}>{isDrive ? prompt || 'ACTION' : rushing ? 'RUSH!' : meter >= 1 ? 'RUSH' : 'SHINE'}</Text>
           </View>
-          {g.gear.shield && (
+          {g.gear.shield && !isDrive && (
             <View style={[styles.btn, { left: shieldC.x - shieldC.r, top: shieldC.y - shieldC.r, bottom: undefined, width: shieldC.r * 2, height: shieldC.r * 2, borderRadius: shieldC.r, opacity: inp.shield ? 0.9 : 0.5, borderWidth: inp.shield ? 3 : 0, borderColor: '#9cc7ff' }]}>
               <Text style={{ fontSize: 26 }}>🛡️</Text>
             </View>
@@ -483,6 +494,7 @@ export default function App() {
           {g.levelNo === 2 && <Text style={styles.hint}>Aliens drop ⚡ ammo for the ray gun.{'\n'}Your 🌽 button fires the ray gun whenever you have ammo.</Text>}
           {g.levelNo === 3 && <Text style={styles.hint}>🗡️ Fire slashes enemies up close, then shoots.{'\n'}Hold 🛡️ to block from the front.</Text>}
           {g.levelNo === 4 && <Text style={styles.hint}>Hug the edge of a girder and jump up through the gap. Barrels roll toward you!{'\n'}Shoot or slash them, or hold 🛡️ to block.</Text>}
+          {g.levelNo === 7 && <Text style={styles.hint}>◀ ▶ steer, GAS drives (or walks), 🛑 brakes and reverses.{'\n'}The ACTION button gets in a ride or out of it, or CARJACKS a farmer (he'll tell you where Big Al's is). Follow the road signs!</Text>}
           {g.levelNo === 6 && <Text style={styles.hint}>Grab flaming tequila 🔥, then tap FIRE to BELCH a flame ball.{'\n'}Pack Billy eats them. Feed him 5. He can't be hurt, so keep moving!</Text>}
           {g.levelNo === 5 && <Text style={styles.hint}>Jump Max's shockwaves, and hit him while he's winded: he takes DOUBLE damage.{'\n'}Grab the 1UP barrel on the rooftops.</Text>}
           <Text style={styles.tap}>Tap to begin</Text>

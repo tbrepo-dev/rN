@@ -118,6 +118,22 @@ export const SCENES = {
       { who: 'billy', text: "Don't mind if I do!", anim: 'sit' },
       { who: 'narrator', text: 'PSSSSSSSSSSSHHHHhhhh...', anim: 'sit', fx: 'steam' },
       { who: 'billy', text: 'Ahhhhhhhhh.', anim: 'sit', fx: 'steam' },
+      { who: 'billy', text: "Now I need a drink. Big Al's Liquor Store ought to be somewhere around here...", anim: 'sit' },
+    ],
+    then: { level: 7 },
+  },
+
+  // Reaching Big Al's
+  bigAl: {
+    bg: 'store',
+    cast: ['billy', 'bigal'],
+    lines: [
+      { who: 'narrator', text: "Billy slides into the parking lot of Big Al's Liquor Store. The neon sign buzzes. The door jingles." },
+      { who: 'bigal', text: "Welcome to Big Al's! What'll it be, friend?" },
+      { who: 'billy', text: 'Anything. Anything at all. Just not tequila.' },
+      { who: 'bigal', text: 'Ha! Cold root beer, then. On the house. You look like you have had a day.' },
+      { who: 'billy', text: 'You have no idea.' },
+      { who: 'narrator', text: 'Billy cracks open an ice-cold root beer and sits down for the first time all week. Outside, a siren wails... and a tiny shadow in a fur hat slips behind the dumpster.' },
     ],
     then: { ending: 'tbc' },
   },
