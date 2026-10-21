@@ -35,13 +35,14 @@ Extra lives (1UP) come from: a hidden 1UP pickup in every level (look above the 
 
 6. **Hell** (red pill): Billy wakes up in Hell. A gauntlet of imps (throw fireballs), demons (charge) and embers over lava, then **Pack Billy**: a big, hungry, yellow hillbilly Pac-Man with a straw hat and a ginger beard. He can't be hurt, only fed. **Drink flaming tequila** (barrels along the road, then bottles keep appearing in the arena), then tap FIRE to **belch a flame ball**. Pack Billy eats them: feed him **five** and he gets full and lets Billy leave. In the cutscene Billy runs out of the gates of Hell with his backside on fire, finds a toilet, sits on it to put the fire out... and it's **to be continued**.
 
-7. **Big Al's Liquor Store** (a top-down, Grand Theft Auto-style open world): Billy climbs off the toilet and needs a drink. Hick Town is a map of farms, fields, a trailer park, a diner, a junkyard and back roads, with Big Al's hidden in the far north-east corner.
-   - **Controls:** ◀ ▶ steer, **GAS** drives (or walks on foot), 🛑 brakes and reverses, and the **ACTION** button gets into or out of a ride. Near a farmer's truck it says **CARJACK** and throws him out.
-   - **Rides:** pickups (fast), tractors (slow but tough, a big ram), trash trucks (heavy; they win head-on crashes). Park one and hop out when you like.
-   - **Hillbilly traffic:** farmers drive loops around the blocks in the right-hand lane. Crash into them for points; wreck them and they explode. Farmers on foot dive out of the way (and get knocked silly if you hit them).
-   - **Cops:** crimes (carjacking, crashing, flattening a farmer) raise your wanted stars (up to 3). Cops chase and ram you, and every so often one decides to chase you for no reason at all. If one catches you standing still, you're BUSTED and lose a life. Get away and the heat fades.
-   - **Finding Big Al's:** follow the road signs (watch out for the prankster's decoy), or carjack a farmer, who'll tell you which way to go. Big Al's shows up on the minimap once you get close. Drive or walk up to the door to win.
-   - Jugs of moonshine are scattered around (every 25 gives a life), plus two hidden 1UPs.
+7. **Big Al's Liquor Store** (a big top-down, Grand Theft Auto-style open world, 300x200 tiles): Billy climbs off the toilet and needs a drink, but Big Al's has moved and nobody knows where. Hick Town has farms, crop fields, trailer parks, a lake, a quarry, a grain elevator, back roads and a thick forest.
+   - **Controls:** ◀ ▶ steer, **GAS** drives (or walks on foot), 🛑 brakes and reverses, and **ACTION** gets into or out of a ride. Near a farmer's truck it says **CARJACK** and throws him out.
+   - **Rides:** pickups (fast), tractors (slow but tough, a big ram), trash trucks (heavy; they win head-on crashes).
+   - **Hillbilly traffic:** farmers drive loops around the blocks in the right-hand lane. Crash into them for points; wreck them and they explode. Farmers on foot dive out of the way.
+   - **Cops:** crimes raise your wanted stars (up to 3). Cops follow the roads, chase and ram you, and every so often one chases you for no reason. If one catches you standing still, you're BUSTED and lose a life. Get away and the heat fades.
+   - **The hunt for Big Al's** is a chain of clues across the whole map: a note on the outhouse points you to the **Honky Tonk** in the middle, where you learn to ask **Pete at his junkyard** far south-east, who sends you to the **dead tree** in the far north-west, where a hand-painted sign marks a **dirt road** winding deep into the woods to the store. The minimap only shows your current lead, Big Al's only appears on it when you are nearly on top of it, and each landmark is a checkpoint, so your progress survives a death.
+   - **Decoys:** misleading road signs, a closed fake store (Little Al's), and carjacked farmers who sometimes know nothing at all.
+   - Jugs of moonshine are scattered around (every 25 gives a life), plus four hidden 1UPs.
    - After the win there's a cutscene at the store... and it's *to be continued*.
 
 Gear you miss is waiting in a loot chest at the end of each level. Gear, ammo, lives and score carry from level to level. In the tower and pagoda, Billy keeps his full knight-alien kit.

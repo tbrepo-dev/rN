@@ -87,7 +87,46 @@ function Building({ b, ps }) {
           <Text style={{ fontSize: ps * 0.8 }}>🌙</Text>
         </View>
       );
+    case 'elevator':
+      return (
+        <View style={[style, { backgroundColor: '#c9c3b0', borderWidth: 3, borderColor: '#7a7466', borderRadius: 4 }]}>
+          <View style={{ position: 'absolute', left: w * 0.1, top: h * 0.1, width: w * 0.8, height: h * 0.3, backgroundColor: '#a9a392', borderRadius: 3 }} />
+          <View style={{ position: 'absolute', left: w * 0.3, top: h * 0.45, width: w * 0.4, height: w * 0.4, borderRadius: w, backgroundColor: '#b8b2a0', borderWidth: 3, borderColor: '#8a8472' }} />
+          {label}
+        </View>
+      );
+    case 'lodge':
+      return (
+        <View style={[style, { backgroundColor: '#7a5230', borderWidth: 3, borderColor: '#3f2814', borderRadius: 3 }]}>
+          {[0.2, 0.4, 0.6, 0.8].map((f) => <View key={f} style={{ position: 'absolute', left: 0, right: 0, top: h * f, height: 2, backgroundColor: 'rgba(0,0,0,0.3)' }} />)}
+        </View>
+      );
+    case 'quarry':
+      return (
+        <View style={[style, { backgroundColor: '#8f949b', borderWidth: 4, borderColor: '#5b6068', borderRadius: ps * 2 }]}>
+          <View style={{ position: 'absolute', left: w * 0.1, top: h * 0.1, width: w * 0.8, height: h * 0.8, backgroundColor: '#6e747c', borderRadius: ps * 1.5 }} />
+          <View style={{ position: 'absolute', left: w * 0.25, top: h * 0.25, width: w * 0.5, height: h * 0.5, backgroundColor: '#4b5057', borderRadius: ps }} />
+          <View style={{ position: 'absolute', left: w * 0.38, top: h * 0.38, width: w * 0.24, height: h * 0.24, backgroundColor: '#2f3338', borderRadius: ps * 0.6 }} />
+          {label}
+        </View>
+      );
+    case 'dock':
+      return (
+        <View style={[style, { backgroundColor: '#9a7a4a', borderWidth: 2, borderColor: '#5a431f' }]}>
+          {[0.25, 0.5, 0.75].map((f) => <View key={f} style={{ position: 'absolute', top: 0, bottom: 0, left: w * f, width: 2, backgroundColor: 'rgba(0,0,0,0.3)' }} />)}
+        </View>
+      );
     case 'store':
+      if (b.label && b.label.startsWith('LITTLE')) {
+        // a run-down fake: closed, a bit sad
+        return (
+          <View style={[style, { backgroundColor: '#5c6b7a', borderWidth: 3, borderColor: '#2d3640', borderRadius: 5 }]}>
+            <Text style={{ position: 'absolute', left: 0, right: 0, top: h * 0.12, textAlign: 'center', fontSize: ps * 0.75, fontWeight: '900', color: '#c9d4de' }}>LITTLE AL'S</Text>
+            <Text style={{ position: 'absolute', left: 0, right: 0, top: h * 0.42, textAlign: 'center', fontSize: ps * 0.6, fontWeight: '900', color: '#8895a3', letterSpacing: 2 }}>LIQUOR</Text>
+            <Text style={{ position: 'absolute', left: 0, right: 0, bottom: ps * 0.3, textAlign: 'center', fontSize: ps * 0.7, fontWeight: '900', color: '#e0402a' }}>CLOSED</Text>
+          </View>
+        );
+      }
       return (
         <View style={[style, { backgroundColor: '#5a2a7a', borderWidth: 4, borderColor: '#e0b030', borderRadius: 5 }]}>
           <View style={{ position: 'absolute', left: -ps * 0.5, top: -ps * 0.5, right: -ps * 0.5, bottom: -ps * 0.5, borderRadius: ps, backgroundColor: 'rgba(255,90,200,0.2)' }} />
@@ -110,17 +149,90 @@ function Building({ b, ps }) {
   }
 }
 
-export const StaticTown = React.memo(function StaticTown({ level, ps }) {
+// The map is 300x200 tiles, so only the chunks near the camera are drawn.
+const CHUNK = 30;
+const chunkCache = new WeakMap();
+
+function chunksFor(L) {
+  if (chunkCache.has(L)) return chunkCache.get(L);
+  const map = new Map();
+  const add = (item, x, y, w, h) => {
+    for (let cy = Math.floor(y / CHUNK); cy <= Math.floor((y + h) / CHUNK); cy++)
+      for (let cx = Math.floor(x / CHUNK); cx <= Math.floor((x + w) / CHUNK); cx++) {
+        const k = `${cx},${cy}`;
+        if (!map.has(k)) map.set(k, []);
+        map.get(k).push(item);
+      }
+  };
+  L.fields.forEach((f, i) => add({ t: 'f', d: f, k: `f${i}` }, f.x, f.y, f.w, f.h));
+  L.ponds.forEach((p, i) => add({ t: 'p', d: p, k: `p${i}` }, p.x, p.y, p.w, p.h));
+  L.buildings.forEach((b, i) => add({ t: 'b', d: b, k: `b${i}` }, b.x, b.y, b.w, b.h));
+  L.trees.forEach((tr, i) => add({ t: 't', d: tr, k: `t${i}` }, tr.x - 1, tr.y - 1, 2, 2));
+  L.signs.forEach((sg, i) => add({ t: 's', d: sg, k: `s${i}` }, sg.x - 3, sg.y - 1, 6, 2));
+  chunkCache.set(L, map);
+  return map;
+}
+
+function StaticItem({ item, ps }) {
+  const { t, d } = item;
+  if (t === 'f') {
+    return (
+      <View style={{ position: 'absolute', left: d.x * ps, top: d.y * ps, width: d.w * ps, height: d.h * ps, backgroundColor: CROPS[d.crop], borderWidth: 2, borderColor: '#5a7a30', overflow: 'hidden' }}>
+        {Array.from({ length: Math.floor(d.h / 1.6) }, (_, k) => (
+          <View key={k} style={{ position: 'absolute', left: 0, right: 0, top: ps * (0.8 + k * 1.6), height: 2, backgroundColor: 'rgba(60,90,20,0.45)' }} />
+        ))}
+      </View>
+    );
+  }
+  if (t === 'p') {
+    return (
+      <View style={{ position: 'absolute', left: d.x * ps, top: d.y * ps, width: d.w * ps, height: d.h * ps, backgroundColor: '#3f8fd0', borderRadius: ps * 5, borderWidth: 4, borderColor: '#a89870' }}>
+        <View style={{ position: 'absolute', left: d.w * ps * 0.2, top: d.h * ps * 0.3, width: d.w * ps * 0.4, height: 3, backgroundColor: 'rgba(255,255,255,0.4)' }} />
+        <View style={{ position: 'absolute', left: d.w * ps * 0.5, top: d.h * ps * 0.6, width: d.w * ps * 0.3, height: 3, backgroundColor: 'rgba(255,255,255,0.35)' }} />
+      </View>
+    );
+  }
+  if (t === 'b') return <Building b={d} ps={ps} />;
+  if (t === 't') {
+    if (d.dead) {
+      // the DEAD TREE: grey bare branches
+      return (
+        <View style={{ position: 'absolute', left: (d.x - 1.4) * ps, top: (d.y - 1.4) * ps, width: ps * 2.8, height: ps * 2.8, alignItems: 'center', justifyContent: 'center' }}>
+          {[0, 45, 90, 135].map((a) => (
+            <View key={a} style={{ position: 'absolute', width: ps * 2.6, height: 3, backgroundColor: '#6b6258', transform: [{ rotate: `${a}deg` }] }} />
+          ))}
+          <View style={{ width: ps * 0.9, height: ps * 0.9, borderRadius: ps, backgroundColor: '#51483f', borderWidth: 2, borderColor: '#2f2923' }} />
+        </View>
+      );
+    }
+    return <View style={{ position: 'absolute', left: (d.x - 0.9) * ps, top: (d.y - 0.9) * ps, width: ps * 1.8, height: ps * 1.8, borderRadius: ps, backgroundColor: '#2f8040', borderWidth: 3, borderColor: '#1d5a28' }} />;
+  }
+  // signs
+  return (
+    <View style={{ position: 'absolute', left: (d.x - 2.4) * ps, top: (d.y - 0.7) * ps, width: ps * 4.8, minHeight: ps * 1.4, backgroundColor: d.hand ? '#c8a46a' : '#e8c63a', borderWidth: 2, borderColor: d.hand ? '#5a3a1a' : '#5a4a10', borderRadius: 4, alignItems: 'center', justifyContent: 'center', padding: 2, transform: d.hand ? [{ rotate: '-4deg' }] : undefined }}>
+      <Text style={{ fontSize: Math.max(7, ps * 0.42), fontWeight: '900', color: d.hand ? '#3a2a1a' : '#2a2208', fontStyle: d.hand ? 'italic' : 'normal', textAlign: 'center' }}>{d.text}</Text>
+    </View>
+  );
+}
+
+const Chunk = React.memo(function Chunk({ items, ps }) {
+  return (
+    <>
+      {items.map((it) => (
+        <StaticItem key={it.k} item={it} ps={ps} />
+      ))}
+    </>
+  );
+});
+
+// The ground and the roads never change, and there are only a few of them
+const Ground = React.memo(function Ground({ level, ps }) {
   const L = level;
   return (
     <>
       <View style={{ position: 'absolute', left: 0, top: 0, width: L.w * ps, height: L.h * ps, backgroundColor: '#78b05a' }} />
-      {L.fields.map((f, i) => (
-        <View key={`f${i}`} style={{ position: 'absolute', left: f.x * ps, top: f.y * ps, width: f.w * ps, height: f.h * ps, backgroundColor: CROPS[f.crop], borderWidth: 2, borderColor: '#5a7a30', overflow: 'hidden' }}>
-          {Array.from({ length: Math.floor(f.h / 1.6) }, (_, k) => (
-            <View key={k} style={{ position: 'absolute', left: 0, right: 0, top: ps * (0.8 + k * 1.6), height: 2, backgroundColor: 'rgba(60,90,20,0.45)' }} />
-          ))}
-        </View>
+      {L.dirt.map((r, i) => (
+        <View key={`d${i}`} style={{ position: 'absolute', left: r.x * ps, top: r.y * ps, width: r.w * ps, height: r.h * ps, backgroundColor: '#a8844f', borderWidth: 1, borderColor: '#8a6a3a' }} />
       ))}
       {L.roads.map((r, i) => (
         <View key={`r${i}`} style={{ position: 'absolute', left: r.x * ps, top: r.y * ps, width: r.w * ps, height: r.h * ps, backgroundColor: '#4b4e54' }}>
@@ -140,27 +252,19 @@ export const StaticTown = React.memo(function StaticTown({ level, ps }) {
       {L.intersections.map((r, i) => (
         <View key={`x${i}`} style={{ position: 'absolute', left: r.x * ps, top: r.y * ps, width: r.w * ps, height: r.h * ps, backgroundColor: '#4b4e54' }} />
       ))}
-      {L.ponds.map((p, i) => (
-        <View key={`p${i}`} style={{ position: 'absolute', left: p.x * ps, top: p.y * ps, width: p.w * ps, height: p.h * ps, backgroundColor: '#3f8fd0', borderRadius: ps * 3, borderWidth: 4, borderColor: '#a89870' }}>
-          <View style={{ position: 'absolute', left: p.w * ps * 0.2, top: p.h * ps * 0.3, width: p.w * ps * 0.4, height: 3, backgroundColor: 'rgba(255,255,255,0.4)' }} />
-        </View>
-      ))}
-      {L.buildings.map((b, i) => (
-        <Building key={`b${i}`} b={b} ps={ps} />
-      ))}
-      {L.trees.map((t, i) => (
-        <View key={`t${i}`} style={{ position: 'absolute', left: (t.x - 0.9) * ps, top: (t.y - 0.9) * ps, width: ps * 1.8, height: ps * 1.8, borderRadius: ps, backgroundColor: '#2c7a3a', borderWidth: 2, borderColor: '#1d5a28', alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ width: ps * 0.9, height: ps * 0.9, borderRadius: ps, backgroundColor: '#3f9a4c' }} />
-        </View>
-      ))}
-      {L.signs.map((s, i) => (
-        <View key={`s${i}`} style={{ position: 'absolute', left: (s.x - 2.2) * ps, top: (s.y - 0.7) * ps, width: ps * 4.4, minHeight: ps * 1.4, backgroundColor: '#e8c63a', borderWidth: 2, borderColor: '#5a4a10', borderRadius: 4, alignItems: 'center', justifyContent: 'center', padding: 2 }}>
-          <Text style={{ fontSize: Math.max(7, ps * 0.42), fontWeight: '900', color: '#2a2208', textAlign: 'center' }}>{s.text}</Text>
-        </View>
-      ))}
     </>
   );
 }, (a, b) => a.level === b.level && a.ps === b.ps);
+
+export const StaticTown = React.memo(function StaticTown({ level, ps, keys }) {
+  const map = chunksFor(level);
+  return (
+    <>
+      <Ground level={level} ps={ps} />
+      {keys.split('|').map((k) => (map.get(k) ? <Chunk key={k} items={map.get(k)} ps={ps} /> : null))}
+    </>
+  );
+}, (a, b) => a.level === b.level && a.ps === b.ps && a.keys === b.keys);
 
 // ---------------------------------------------------------------------------
 // Vehicles, drawn from above with the front pointing right
@@ -281,6 +385,7 @@ function Minimap({ g, w }) {
       {L.ponds.map((p, i) => (
         <View key={`p${i}`} style={{ position: 'absolute', left: p.x * k, top: p.y * k, width: p.w * k, height: p.h * k, backgroundColor: '#3f8fd0' }} />
       ))}
+      {D.stage < L.clues.length && <Text style={{ position: 'absolute', left: L.clues[D.stage].x * k - 6, top: L.clues[D.stage].y * k - 9, fontSize: 14, fontWeight: '900', color: '#fff', textShadowColor: '#000', textShadowRadius: 3 }}>❓</Text>}
       {D.found && <Text style={{ position: 'absolute', left: L.store.cx * k - 7, top: L.store.cy * k - 9, fontSize: 14 }}>⭐</Text>}
       {D.vehicles.filter((v) => v.driver === 'cop' && !v.wreck).map((v) => (
         <View key={v.id} style={{ position: 'absolute', left: v.x * k - 2.5, top: v.y * k - 2.5, width: 5, height: 5, borderRadius: 3, backgroundColor: Math.floor(D.time * 6) % 2 ? '#ff3a3a' : '#3a6aff' }} />
@@ -300,18 +405,24 @@ export function DriveView({ g, width, height }) {
   const ox = width / 2 - D.cam.x * ps;
   const oy = height / 2 - D.cam.y * ps;
   const inView = (x, y, m = 4) => Math.abs(x - D.cam.x) < width / ps / 2 + m && Math.abs(y - D.cam.y) < height / ps / 2 + m;
+  const viewW = width / ps;
+  const viewH = height / ps;
+  const ck = [];
+  for (let cy = Math.floor((D.cam.y - viewH / 2 - 6) / CHUNK); cy <= Math.floor((D.cam.y + viewH / 2 + 6) / CHUNK); cy++)
+    for (let cx = Math.floor((D.cam.x - viewW / 2 - 6) / CHUNK); cx <= Math.floor((D.cam.x + viewW / 2 + 6) / CHUNK); cx++) ck.push(`${cx},${cy}`);
+  const chunkKeys = ck.join('|');
   const heat = stars(D);
   const flash = Math.floor(t * 5) % 2 === 0;
   const cops = D.vehicles.filter((v) => v.driver === 'cop' && !v.wreck).length;
-  const dir = (() => {
-    if (!D.found) return null;
-    const a = (Math.atan2(L.store.cy - P.y, L.store.cx - P.x) + Math.PI * 2) % (Math.PI * 2);
-    return { ang: a, name: DIRS[Math.round(a / (Math.PI / 4)) % 8], d: Math.round(Math.hypot(L.store.cx - P.x, L.store.cy - P.y)) };
-  })();
+  const objective = D.found
+    ? "⭐ Big Al's is right here in the woods!"
+    : D.stage < L.clues.length
+    ? (D.stage === 0 ? L.startObjective : L.clues[D.stage].objective)
+    : 'Follow the dirt road into the woods...';
   return (
     <>
       <View style={{ position: 'absolute', left: ox, top: oy, width: L.w * ps, height: L.h * ps }} pointerEvents="none">
-        <StaticTown level={L} ps={ps} />
+        <StaticTown level={L} ps={ps} keys={chunkKeys} />
         {D.pickups.map((pk, i) =>
           pk.taken || !inView(pk.x, pk.y) ? null : pk.kind === 'life' ? <OneUp key={`k${i}`} x={pk.x - 0.5} y={pk.y - 0.5} ts={ps} t={t} /> : <Jug key={`k${i}`} x={pk.x - 0.5} y={pk.y - 0.5} ts={ps} t={t} />
         )}
@@ -352,7 +463,7 @@ export function DriveView({ g, width, height }) {
         )}
       </View>
       <View style={styles.objective} pointerEvents="none">
-        <Text style={styles.objText}>{D.found ? `⭐ Big Al's is ${dir.d} tiles ${dir.name}!` : "Find Big Al's Liquor Store"}</Text>
+        <Text style={styles.objText}>{objective}</Text>
         {D.hint && <Text style={styles.hintText}>{D.hint.text}</Text>}
       </View>
       {D.bust > 0 && (
@@ -364,7 +475,7 @@ export function DriveView({ g, width, height }) {
         </View>
       )}
       <View style={styles.miniWrap} pointerEvents="none">
-        <Minimap g={g} w={120} />
+        <Minimap g={g} w={150} />
       </View>
     </>
   );

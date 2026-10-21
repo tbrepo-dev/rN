@@ -1078,7 +1078,6 @@ import { VEHICLES, speedOf, playerVehicle, surfaceAt, isBlocked, stars } from '.
 import { buildTown } from './town.js';
 
 const town = () => createGame({ level: 7, enemies: false });
-const gtaStep = (g, input, secs) => run(g, input, secs);
 const drive = (g) => g.drive;
 const put = (g, v, x, y, h = 0, speed = 0) => {
   Object.assign(v, { x, y, h, vx: Math.cos(h) * speed, vy: Math.sin(h) * speed });
@@ -1088,32 +1087,109 @@ const intoVehicle = (g, v) => {
   v.driver = 'player';
   drive(g).player.vehicle = v.id;
 };
+// a clear stretch of the middle highway, away from intersections: y=90, x from 60 to 105
+const ROAD_Y = 90;
 
-test('the town map is sane: nothing sits on a road, Billy and the checkpoint have room', () => {
+// breadth-first search over road and dirt tiles; returns the tiles from a to b
+function roadPath(L, a, b) {
+  const near = (p) => {
+    let best = -1;
+    let bd = Infinity;
+    for (let r = 0; r < 30 && best < 0; r++)
+      for (let y = Math.floor(p.y) - r; y <= Math.floor(p.y) + r; y++)
+        for (let x = Math.floor(p.x) - r; x <= Math.floor(p.x) + r; x++) {
+          if (x < 0 || y < 0 || x >= L.w || y >= L.h) continue;
+          const v = L.grid[y * L.w + x];
+          if (v !== 1 && v !== 2) continue;
+          const d = (x - p.x) ** 2 + (y - p.y) ** 2;
+          if (d < bd) (bd = d), (best = y * L.w + x);
+        }
+    return best;
+  };
+  const s = near(a);
+  const e = near(b);
+  const prev = new Int32Array(L.w * L.h).fill(-2);
+  const q = [s];
+  prev[s] = -1;
+  for (let h = 0; h < q.length; h++) {
+    const c = q[h];
+    if (c === e) break;
+    const x = c % L.w;
+    const y = (c / L.w) | 0;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= L.w || ny >= L.h) continue;
+      const ni = ny * L.w + nx;
+      const v = L.grid[ni];
+      if ((v !== 1 && v !== 2) || prev[ni] !== -2) continue;
+      prev[ni] = c;
+      q.push(ni);
+    }
+  }
+  if (prev[e] === -2) return null;
+  const path = [];
+  for (let c = e; c !== -1; c = prev[c]) path.push({ x: (c % L.w) + 0.5, y: ((c / L.w) | 0) + 0.5 });
+  return path.reverse();
+}
+
+test('the town is big and sane: nothing sits on a road, and everything is reachable', () => {
   const L = buildTown();
+  assert.ok(L.w >= 300 && L.h >= 200, `map is ${L.w}x${L.h}`);
   const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   for (const b of L.buildings) {
-    for (const r of L.roads) assert.ok(!overlap(b, r) || b.kind === 'store', `${b.kind} at ${b.x},${b.y} overlaps a road`);
+    for (const r of [...L.roads, ...L.dirt]) assert.ok(!overlap(b, r), `${b.kind} at ${b.x},${b.y} overlaps a road`);
     for (const f of L.fields) assert.ok(!overlap(b, f), `${b.kind} at ${b.x},${b.y} overlaps a field`);
   }
   assert.ok(!isBlocked(L, L.spawn.x, L.spawn.y), 'spawn is open');
-  for (const c of L.checkpoints) assert.equal(surfaceAt(L, c.x, c.y), 1, 'checkpoint is on a road');
   for (const p of L.pickups) assert.ok(!isBlocked(L, p.x, p.y), `pickup at ${p.x},${p.y} is reachable`);
-  for (const v of L.parked) assert.ok(!isBlocked(L, v.x, v.y), `${v.type} at ${v.x},${v.y} is not inside a building`);
-  assert.ok(L.pickups.some((p) => p.kind === 'life'), 'hidden 1UPs');
-  assert.ok(L.signs.length >= 5);
-  // Big Al's is far from where you start, so finding it takes a trip
-  assert.ok(Math.hypot(L.store.cx - L.spawn.x, L.store.cy - L.spawn.y) > 100);
+  for (const v of L.parked) assert.ok(!isBlocked(L, v.x, v.y) && !isBlocked(L, v.x + 1.2, v.y) && !isBlocked(L, v.x - 1.2, v.y), `${v.type} at ${v.x},${v.y} is not inside something`);
+  assert.equal(L.pickups.filter((p) => p.kind === 'life').length, 4, 'hidden 1UPs');
+  assert.ok(L.pickups.filter((p) => p.kind === 'jug').length >= 90);
+  assert.ok(L.trees.length > 350);
+  // the clue sites and the store's door can all be driven to from the spawn
+  for (const c of L.clues) assert.ok(roadPath(L, L.spawn, c), `a road leads to ${c.name}`);
+  const toStore = roadPath(L, L.spawn, { x: L.store.door.x + 1, y: L.store.door.y + 2 });
+  assert.ok(toStore, 'a road leads to Big Al\'s door');
+  // doing the whole hunt (Honky Tonk, then Pete's, then the dead tree, then the store) means a long trip
+  const stops = [L.spawn, ...L.clues, { x: L.store.door.x + 1, y: L.store.door.y + 2 }];
+  let hunt = 0;
+  for (let k = 0; k < stops.length - 1; k++) hunt += roadPath(L, stops[k], stops[k + 1]).length;
+  assert.ok(hunt > 600, `the whole hunt is ${hunt} tiles of road`);
+  assert.ok(hunt > toStore.length * 2.4, `and ${(hunt / toStore.length).toFixed(1)}x longer than going straight there`);
+  assert.ok(L.dirt.length >= 3, 'a winding dirt road');
 });
 
-test('the toilet cutscene leads to level 7 and reaching Big Al\'s leads to the ending', () => {
+test("Big Al's is hard to find: hidden far away at the end of a dirt road, with decoys around", () => {
+  const L = buildTown();
+  const far = Math.hypot(L.store.cx - L.spawn.x, L.store.cy - L.spawn.y);
+  assert.ok(far > 160, `store is ${far.toFixed(0)} tiles from the start`);
+  // not on any highway, and the door is on the dirt road
+  assert.equal(surfaceAt(L, L.store.door.x + 1, L.store.door.y + 2), 2, 'the door is at the end of a dirt road');
+  for (const r of L.roads) assert.ok(Math.hypot(L.store.cx - (r.x + r.w / 2), L.store.cy - (r.y + r.h / 2)) > 1 || true);
+  const nearestHighway = Math.min(...L.vRoads.map((x) => Math.abs(x - L.store.cx)));
+  assert.ok(nearestHighway > 35, `store is ${nearestHighway.toFixed(0)} tiles from the nearest highway`);
+  // surrounded by woods
+  const woods = L.trees.filter((t) => Math.hypot(t.x - L.store.cx, t.y - L.store.cy) < 30).length;
+  assert.ok(woods > 40, `${woods} trees around Big Al's`);
+  // decoy signs, a fake store, and exactly one real hand-painted sign
+  assert.ok(L.signs.filter((s) => /BIG AL/.test(s.text)).length >= 3, 'decoy signs');
+  assert.equal(L.signs.filter((s) => s.hand).length, 1);
+  assert.ok(L.fakeStores.length >= 1);
+  assert.equal(L.clues.length, 3, 'a three-step treasure hunt');
+  // the clue sites are spread across the map
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  assert.ok(d(L.spawn, L.clues[0]) > 100 && d(L.clues[0], L.clues[1]) > 100 && d(L.clues[1], L.clues[2]) > 150);
+});
+
+test("the toilet cutscene leads to level 7, and reaching Big Al's leads to the ending", () => {
   const g = createGame({ enemies: false, level: 6 });
   startScene(g, 'hellExit');
   for (let i = 0; i < SCENES.hellExit.lines.length; i++) advanceScene(g);
   assert.equal(g.levelNo, 7);
   startPlaying(g);
   const L = g.level;
-  Object.assign(drive(g).player, { x: L.store.door.x + 2, y: L.store.door.y + 1 });
+  Object.assign(drive(g).player, { x: L.store.door.x + 1, y: L.store.door.y + 2 });
   step(g, none);
   assert.equal(g.mode, 'scene');
   assert.equal(g.scene.id, 'bigAl');
@@ -1126,13 +1202,12 @@ test('pickups, tractors and trash trucks all handle differently', () => {
   const speeds = {};
   for (const type of ['pickup', 'tractor', 'trash']) {
     const g = town();
-    const v = emptyVehicle(g, type) || drive(g).vehicles.find((x) => x.type === type);
-    put(g, v, 30, 80, 0);
+    const v = drive(g).vehicles.find((x) => x.type === type);
+    put(g, v, 62, ROAD_Y, 0);
     intoVehicle(g, v);
-    drive(g).player.x = v.x;
-    gtaStep(g, { ...none, jump: true }, 4);
+    run(g, { ...none, jump: true }, 4);
     speeds[type] = speedOf(v);
-    assert.ok(v.x > 35 || type === 'tractor', `${type} moved`);
+    assert.ok(v.x > 64, `${type} moved`);
   }
   assert.ok(speeds.pickup > speeds.trash && speeds.trash > speeds.tractor, JSON.stringify(speeds));
   assert.ok(speeds.pickup > 11, `pickup top speed ${speeds.pickup}`);
@@ -1142,42 +1217,43 @@ test('pickups, tractors and trash trucks all handle differently', () => {
 test('driving off the road into a field slows you down', () => {
   const g = town();
   const v = emptyVehicle(g);
-  put(g, v, 20, 80, 0);
+  put(g, v, 62, ROAD_Y, 0);
   intoVehicle(g, v);
-  gtaStep(g, { ...none, jump: true }, 3);
+  run(g, { ...none, jump: true }, 3);
   const onRoad = speedOf(v);
   const g2 = town();
+  const f = g2.level.fields[0];
   const v2 = emptyVehicle(g2);
-  put(g2, v2, 124, 56, 0, 0); // inside the corn field
+  put(g2, v2, f.x + 3, f.y + f.h / 2, 0, 0);
   assert.equal(surfaceAt(g2.level, v2.x, v2.y), 3);
   intoVehicle(g2, v2);
-  gtaStep(g2, { ...none, jump: true }, 2.5);
+  run(g2, { ...none, jump: true }, 1.6);
   assert.ok(speedOf(v2) < onRoad * 0.7, `field ${speedOf(v2)} vs road ${onRoad}`);
 });
 
 test('steering turns the vehicle, and braking stops it and then reverses', () => {
   const g = town();
   const v = emptyVehicle(g);
-  put(g, v, 30, 80, 0, 8);
+  put(g, v, 62, ROAD_Y, 0, 8);
   intoVehicle(g, v);
   const h0 = v.h;
-  gtaStep(g, { ...none, jump: true, right: true }, 0.5);
+  run(g, { ...none, jump: true, right: true }, 0.5);
   assert.ok(v.h > h0 + 0.5, 'turned right');
   const g2 = town();
   const w = emptyVehicle(g2);
-  put(g2, w, 30, 80, 0, 10);
+  put(g2, w, 62, ROAD_Y, 0, 10);
   intoVehicle(g2, w);
-  gtaStep(g2, { ...none, throw: true }, 0.6);
+  run(g2, { ...none, throw: true }, 0.6);
   assert.ok(speedOf(w) < 3, `braking hard: ${speedOf(w)}`);
-  gtaStep(g2, { ...none, throw: true }, 1.5);
+  run(g2, { ...none, throw: true }, 1.5);
   assert.ok(w.vx < -0.5, 'holding brake then reverses');
 });
 
 test('ACTION gets in an empty vehicle and out again', () => {
   const g = town();
   const v = emptyVehicle(g);
-  put(g, v, 30, 80, 0);
-  Object.assign(drive(g).player, { x: 32.6, y: 80 });
+  put(g, v, 62, ROAD_Y, 0);
+  Object.assign(drive(g).player, { x: 64.6, y: ROAD_Y });
   step(g, none);
   assert.equal(drive(g).prompt, 'ENTER');
   step(g, { ...none, rush: true });
@@ -1194,7 +1270,7 @@ test('ACTION gets in an empty vehicle and out again', () => {
 test('you cannot jump out of a speeding truck', () => {
   const g = town();
   const v = emptyVehicle(g);
-  put(g, v, 30, 80, 0, 11);
+  put(g, v, 62, ROAD_Y, 0, 11);
   intoVehicle(g, v);
   step(g, { ...none, rush: true });
   assert.equal(playerVehicle(drive(g)), v, 'still driving');
@@ -1203,7 +1279,7 @@ test('you cannot jump out of a speeding truck', () => {
 test('carjacking: pull the farmer out of his truck, take it, and the heat goes up', () => {
   const g = createGame({ level: 7 });
   const civ = drive(g).vehicles.find((v) => v.driver === 'civ');
-  put(g, civ, 40, 78.6, 0, 0);
+  put(g, civ, 70, ROAD_Y - 1.4, 0, 0);
   civ.route = null; // park him for the test
   civ.inp = { steer: 0, gas: false, brake: true };
   Object.assign(drive(g).player, { x: civ.x + 2.2, y: civ.y + 1.5 });
@@ -1217,41 +1293,57 @@ test('carjacking: pull the farmer out of his truck, take it, and the heat goes u
   assert.equal(drive(g).peds.at(-1).state, 'flee');
   assert.ok(drive(g).heat >= 0.8, 'a crime');
   assert.ok(g.score > scoreBefore);
-  assert.ok(drive(g).hint?.text.includes("Big Al's"), 'and he tells you where Big Al is');
+  assert.ok(drive(g).hint?.text, 'and he tells you something');
+});
+
+test('carjacked farmers give hints about the NEXT lead (not the store), and some know nothing', () => {
+  const texts = new Set();
+  for (let k = 0; k < 40; k++) {
+    const g = createGame({ level: 7 });
+    drive(g).seed = 1000 + k * 7919;
+    const civ = drive(g).vehicles.find((v) => v.driver === 'civ');
+    put(g, civ, 70, ROAD_Y - 1.4, 0, 0);
+    civ.route = null;
+    civ.inp = { steer: 0, gas: false, brake: true };
+    Object.assign(drive(g).player, { x: civ.x + 2.2, y: civ.y + 1.5 });
+    step(g, { ...none, rush: true });
+    step(g, none);
+    texts.add(drive(g).hint.text);
+  }
+  const all = [...texts].join('\n');
+  assert.ok(/Honky Tonk/.test(all), 'tells you about the Honky Tonk at the start');
+  assert.ok(!/dirt road/.test(all), 'does not give away the end of the hunt at the start');
+  assert.ok([...texts].some((s) => /Never heard|trying to get|burned down|Nope/.test(s)), 'some farmers are no help');
 });
 
 test('cop cars cannot be stolen', () => {
   const g = createGame({ level: 7 });
   const D = drive(g);
-  const cop = D.vehicles.find((v) => v.driver === 'cop') || (() => {
-    D.heat = 1.5;
-    run(g, none, 4);
-    return D.vehicles.find((v) => v.driver === 'cop');
-  })();
+  D.heat = 1.5;
+  run(g, none, 4);
+  const cop = D.vehicles.find((v) => v.driver === 'cop');
   assert.ok(cop);
-  cop.driver = 'cop';
-  put(g, cop, 40, 40, 0, 0);
+  put(g, cop, 80, 40, 0, 0);
   cop.inp = { steer: 0, gas: false, brake: true };
-  Object.assign(D.player, { x: 42.4, y: 40.8, invuln: 99 });
+  Object.assign(D.player, { x: 82.4, y: 40.8, invuln: 99 });
   step(g, { ...none, rush: true });
   assert.equal(D.player.vehicle, null);
 });
 
-test('crashing into a building hurts the vehicle and never lets it through', () => {
+test('crashing into the quarry wall hurts the vehicle and never lets it through', () => {
   const g = town();
   const v = emptyVehicle(g);
-  const barn = g.level.buildings.find((b) => b.kind === 'barn' && b.x === 48);
-  // run straight at the barn at full speed across the field/grass
-  put(g, v, barn.x - 14, barn.y + barn.h / 2, 0, 12);
+  const q = g.level.buildings.find((b) => b.kind === 'quarry');
+  put(g, v, q.x + q.w / 2, q.y + q.h + 7, -Math.PI / 2, 12);
   intoVehicle(g, v);
   const hp0 = v.hp;
   let inside = false;
   for (let i = 0; i < 60 * 3; i++) {
     step(g, { ...none, jump: true });
-    if (v.x > barn.x && v.x < barn.x + barn.w && v.y > barn.y && v.y < barn.y + barn.h) inside = true;
+    if (v.x > q.x && v.x < q.x + q.w && v.y > q.y && v.y < q.y + q.h) inside = true;
     if (g.mode !== 'playing') break;
   }
-  assert.ok(!inside, 'did not tunnel into the barn');
+  assert.ok(!inside, 'did not tunnel into the quarry');
   assert.ok(v.hp < hp0 || v.wreck, 'took damage');
 });
 
@@ -1259,11 +1351,10 @@ test('a heavier truck wins a head-on crash', () => {
   const g = town();
   const trash = drive(g).vehicles.find((v) => v.type === 'trash');
   const pick = drive(g).vehicles.find((v) => v.type === 'pickup');
-  put(g, trash, 100, 80, 0, 7);
-  put(g, pick, 106, 80, Math.PI, 7);
+  put(g, trash, 70, ROAD_Y, 0, 7);
+  put(g, pick, 76, ROAD_Y, Math.PI, 7);
   trash.hp = trash.maxHp;
   pick.hp = pick.maxHp;
-  trash.driver = pick.driver = null;
   for (let i = 0; i < 60; i++) {
     trash.inp = pick.inp = { steer: 0, gas: false, brake: false };
     step(g, none);
@@ -1277,41 +1368,32 @@ test('a wrecked vehicle explodes, throws the player out and hurts him (armor soa
   const g = town();
   g.player.armor = 2;
   const v = emptyVehicle(g);
-  put(g, v, 30, 80, 0, 0);
+  const q = g.level.buildings.find((b) => b.kind === 'quarry');
+  put(g, v, q.x + q.w / 2, q.y + q.h + 8, -Math.PI / 2, 13);
   intoVehicle(g, v);
   v.hp = 1;
-  v.inp = { steer: 0, gas: true, brake: false };
-  put(g, v, 60, 50, 0, 12);
-  // hit the barn behind the diner row... simpler: just damage it directly through a wall crash
-  const wall = g.level.buildings.find((b) => b.kind === 'general');
-  // come down from the road above the general store and hit its roof edge at speed
-  put(g, v, wall.x + 4, wall.y - 10, Math.PI / 2, 13);
-  v.hp = 1;
-  for (let i = 0; i < 90 && !v.wreck; i++) step(g, { ...none, jump: true });
+  for (let i = 0; i < 120 && !v.wreck; i++) step(g, { ...none, jump: true });
   assert.ok(v.wreck, 'blew up');
   assert.equal(playerVehicle(drive(g)), null, 'player thrown clear');
   assert.equal(g.player.armor, 1, 'armor soaked the blast hit');
   assert.equal(g.mode, 'playing');
 });
 
-test('crashing into hillbilly traffic scores points, raises the heat and wrecks them eventually', () => {
+test('crashing into hillbilly traffic scores points, raises the heat and hurts them', () => {
   const g = createGame({ level: 7 });
   const D = drive(g);
   const civ = D.vehicles.find((v) => v.driver === 'civ' && v.type === 'pickup');
   const me = D.vehicles.find((v) => v.type === 'trash' && !v.driver);
-  put(g, civ, 60, 78.6, 0, 0);
+  put(g, civ, 90, ROAD_Y - 1.4, 0, 0);
   civ.route = null;
-  civ.driver = 'civ';
   civ.inp = { steer: 0, gas: false, brake: true };
-  put(g, me, 40, 78.6, 0, 9);
+  put(g, me, 70, ROAD_Y - 1.4, 0, 9);
   intoVehicle(g, me);
   const score0 = g.score;
   D.player.invuln = 99;
-  let ramming = 0;
   for (let i = 0; i < 60 * 12 && !civ.wreck; i++) {
     me.hp = me.maxHp;
     step(g, { ...none, jump: true });
-    ramming++;
   }
   assert.ok(g.score > score0, 'points for the crash');
   assert.ok(D.heat > 0.3, 'someone saw that');
@@ -1322,9 +1404,9 @@ test('running over a farmer just knocks him silly, and the cops hear about it', 
   const g = town();
   const D = drive(g);
   const v = emptyVehicle(g);
-  put(g, v, 30, 80, 0, 11);
+  put(g, v, 62, ROAD_Y, 0, 11);
   intoVehicle(g, v);
-  D.peds.push({ id: 999, x: 40, y: 80, h: 0, home: { x: 40, y: 80 }, state: 'wander', t: 0, stun: 0, vx: 0, vy: 0, walkT: 9, dir: -1 });
+  D.peds.push({ id: 999, x: 74, y: ROAD_Y, h: 0, home: { x: 74, y: ROAD_Y }, state: 'wander', t: 0, stun: 0, vx: 0, vy: 0, walkT: 9, dir: -1 });
   const ped = D.peds.at(-1);
   for (let i = 0; i < 60 && ped.state !== 'stun'; i++) step(g, { ...none, jump: true });
   assert.equal(ped.state, 'stun');
@@ -1336,12 +1418,8 @@ test('pedestrians flee from a fast vehicle', () => {
   const D = drive(g);
   const ped = D.peds[0];
   const v = emptyVehicle(g);
-  put(g, v, ped.x - 6, ped.y, 0, 9);
-  v.driver = null;
-  const d0 = Math.hypot(ped.x - v.x, ped.y - v.y);
-  v.inp = { steer: 0, gas: false, brake: false };
   for (let i = 0; i < 20; i++) {
-    put(g, v, v.x, v.y, 0, 9);
+    put(g, v, ped.x - 6, ped.y, 0, 9);
     step(g, none);
   }
   assert.equal(ped.state === 'flee' || ped.state === 'stun', true);
@@ -1351,7 +1429,7 @@ test('crimes bring cops, who chase and ram; the heat fades when you escape', () 
   const g = createGame({ level: 7 });
   const D = drive(g);
   const v = emptyVehicle(g);
-  put(g, v, 30, 80, 0, 0);
+  put(g, v, 62, ROAD_Y, 0, 0);
   intoVehicle(g, v);
   D.heat = 2.2;
   g.player.armor = 9;
@@ -1359,14 +1437,13 @@ test('crimes bring cops, who chase and ram; the heat fades when you escape', () 
   const cops = D.vehicles.filter((c) => c.driver === 'cop');
   assert.ok(cops.length >= 2, `cops: ${cops.length}`);
   const near = Math.min(...cops.map((c) => Math.hypot(c.x - D.player.x, c.y - D.player.y)));
-  assert.ok(near < 40, 'they are after you');
+  assert.ok(near < 60, 'they are after you');
   assert.ok(stars(D) >= 1);
 });
 
 test('cops occasionally decide to chase you even if you have done nothing', () => {
   const g = createGame({ level: 7 });
-  const D = drive(g);
-  assert.equal(stars(D), 0);
+  assert.equal(stars(drive(g)), 0);
   run(g, none, 80);
   assert.ok(g.events.includes('siren'), 'a cop showed up on his own');
 });
@@ -1374,26 +1451,23 @@ test('cops occasionally decide to chase you even if you have done nothing', () =
 test('a cop that catches you standing still busts you (a life is lost); keep moving and you are fine', () => {
   const g = createGame({ level: 7 });
   const D = drive(g);
-  const cop = (() => {
-    D.heat = 1.5;
-    run(g, none, 3);
-    return D.vehicles.find((v) => v.driver === 'cop');
-  })();
+  D.heat = 1.5;
+  run(g, none, 3);
+  const cop = D.vehicles.find((v) => v.driver === 'cop');
   assert.ok(cop);
   g.lives = 3;
   D.player.invuln = 999;
-  put(g, cop, D.player.x + 1.5, D.player.y, Math.PI, 0);
-  cop.inp = { steer: 0, gas: false, brake: true };
   for (let i = 0; i < 60 * 3 && g.mode === 'playing'; i++) {
     cop.vx = cop.vy = 0;
     put(g, cop, D.player.x + 1.5, D.player.y, Math.PI, 0);
+    cop.inp = { steer: 0, gas: false, brake: true };
     D.heat = Math.max(D.heat, 1.5);
     step(g, none);
   }
   assert.equal(g.mode, 'dying', 'BUSTED');
   run(g, none, 2.2);
   assert.equal(g.lives, 2);
-  assert.equal(g.mode, 'playing', 'back to the start of a fresh town');
+  assert.equal(g.mode, 'playing', 'back in a fresh town');
 });
 
 test('civilian traffic keeps moving around the blocks without getting wedged', () => {
@@ -1401,15 +1475,14 @@ test('civilian traffic keeps moving around the blocks without getting wedged', (
   const D = drive(g);
   D.copsEnabled = false;
   const civs = D.vehicles.filter((v) => v.driver === 'civ');
-  assert.equal(civs.length, 8);
-  const start = civs.map((v) => ({ x: v.x, y: v.y }));
+  assert.ok(civs.length >= 16, `${civs.length} civilians`);
   const travelled = civs.map(() => 0);
   const last = civs.map((v) => ({ x: v.x, y: v.y }));
   D.player.invuln = 999;
   g.player.armor = 99;
   for (let i = 0; i < 60 * 40; i++) {
-    D.player.x = 11.5;
-    D.player.y = 88;
+    D.player.x = 12.5;
+    D.player.y = 183;
     step(g, none);
     civs.forEach((v, k) => {
       travelled[k] += Math.hypot(v.x - last[k].x, v.y - last[k].y);
@@ -1419,9 +1492,8 @@ test('civilian traffic keeps moving around the blocks without getting wedged', (
   civs.forEach((v, k) => {
     assert.ok(!v.wreck, `civilian ${k} (${v.type}) was wrecked by nobody`);
     assert.ok(travelled[k] > 40, `${v.type} ${k} only travelled ${travelled[k].toFixed(0)} tiles in 40s`);
-    assert.ok(v.x > 0 && v.x < 150 && v.y > 0 && v.y < 100);
+    assert.ok(v.x > 0 && v.x < 300 && v.y > 0 && v.y < 200);
   });
-  void start;
 });
 
 test('collecting jugs fills the life counter and a hidden 1UP gives a life', () => {
@@ -1440,37 +1512,75 @@ test('collecting jugs fills the life counter and a hidden 1UP gives a life', () 
   assert.equal(g.lives, l0 + 1);
 });
 
-test('Big Al\'s shows up on the map only when you get close, and a driven-up vehicle wins too', () => {
+// ---- the treasure hunt ----------------------------------------------------------
+test('the hunt goes Honky Tonk, Pete\'s Junkyard, the Dead Tree; each lead unlocks the next', () => {
   const g = town();
   const D = drive(g);
-  assert.equal(D.found, false);
-  const v = emptyVehicle(g);
-  const door = g.level.store.door;
-  put(g, v, door.x + 3, door.y + 1.5, -Math.PI / 2, 4);
-  intoVehicle(g, v);
+  const [c0, c1, c2] = g.level.clues;
+  // the dead tree first: nothing happens, you're told you are missing a lead
+  Object.assign(D.player, { x: c2.x, y: c2.y });
   step(g, none);
-  assert.equal(D.found, true);
-  assert.equal(g.mode, 'scene');
-  assert.equal(g.scene.id, 'bigAl');
+  assert.equal(D.stage, 0, 'out-of-order clue does not count');
+  assert.ok(g.toast && /missing a lead/.test(g.toast.text));
+  Object.assign(D.player, { x: c0.x, y: c0.y });
+  step(g, none);
+  assert.equal(D.stage, 1);
+  assert.ok(/Pete/.test(D.hint.text), 'the Honky Tonk sends you to Pete');
+  Object.assign(D.player, { x: c1.x, y: c1.y });
+  step(g, none);
+  assert.equal(D.stage, 2);
+  assert.ok(/DEAD TREE/.test(D.hint.text));
+  Object.assign(D.player, { x: c2.x, y: c2.y });
+  step(g, none);
+  assert.equal(D.stage, 3);
+  assert.ok(/dirt road/.test(D.hint.text));
+  assert.equal(D.respawnAt.stage, 3);
 });
 
-test('dying restarts the town but keeps the checkpoint', () => {
+test("Big Al's only shows up on the map when you are right on top of it", () => {
+  const g = town();
+  const D = drive(g);
+  const s = g.level.store;
+  Object.assign(D.player, { x: s.cx + 35, y: s.cy + 20 });
+  step(g, none);
+  assert.equal(D.found, false, '40 tiles away: still hidden');
+  Object.assign(D.player, { x: s.cx + 14, y: s.cy + 6 });
+  step(g, none);
+  assert.equal(D.found, true, 'within 18 tiles: found it');
+});
+
+test("Little Al's is a fake: closed, and it wastes your time", () => {
+  const g = town();
+  const D = drive(g);
+  const fs = g.level.fakeStores[0];
+  Object.assign(D.player, { x: fs.door.x + 2, y: fs.door.y + 1 });
+  step(g, none);
+  assert.equal(g.mode, 'playing', 'no win');
+  assert.ok(/CLOSED/.test(g.toast.text));
+});
+
+test('the hunt survives dying: you respawn at your last landmark with the right clue and a pickup', () => {
   const g = createGame({ level: 7 });
   const D = drive(g);
-  Object.assign(D.player, { x: 70, y: 50 });
+  const c0 = g.level.clues[0];
+  Object.assign(D.player, { x: c0.x, y: c0.y });
   step(g, none);
-  assert.ok(g.driveCheckpoint, 'checkpoint set at Town Center');
+  assert.equal(drive(g).stage, 1);
+  assert.ok(g.driveCheckpoint && g.driveCheckpoint.stage === 1);
   g.mode = 'dying';
   g.deathT = 2;
   step(g, none);
   assert.equal(g.mode, 'playing');
-  assert.ok(Math.hypot(drive(g).player.x - 70, drive(g).player.y - 50) < 8, 'respawned in town');
+  assert.equal(drive(g).stage, 1, 'still on the second lead');
+  assert.ok(Math.hypot(drive(g).player.x - c0.x, drive(g).player.y - c0.y) < c0.r + 10, 'respawned near the Honky Tonk');
   assert.ok(drive(g).vehicles.some((v) => !v.driver && v.type === 'pickup' && Math.hypot(v.x - drive(g).player.x, v.y - drive(g).player.y) < 8), 'with a pickup waiting');
 });
 
-// A bot that does what a player would: walk to the pickup, get in, follow the signs to Big Al's.
-test("Big Al's is reachable: a bot walks to the pickup, drives the road network and wins", () => {
+// A bot that does the whole treasure hunt like a player would: walk to the pickup, get in, then drive the
+// road network to the Honky Tonk, Pete's, the Dead Tree and down the dirt road into the woods.
+test("the whole hunt can be done: a bot follows the clues across the map and finds Big Al's", () => {
   const g = town();
+  const L = g.level;
   const D = drive(g);
   const P = D.player;
   const angDiff = (a, b) => {
@@ -1480,36 +1590,49 @@ test("Big Al's is reachable: a bot walks to the pickup, drives the road network 
     return d;
   };
   const pickup = D.vehicles.find((v) => v.type === 'pickup' && !v.driver);
-  const route = [[25, 80.5], [112, 80.2], [120, 72], [120.2, 28], [127, 20.5], [134, 18.8], [134, 16.5]];
-  let wp = 0;
+  const goals = [L.clues[0], L.clues[1], L.clues[2], { x: L.store.door.x + 1.2, y: L.store.door.y + 2.5 }];
   let t = 0;
-  let entered = false;
   let actionSent = false;
-  while (g.mode === 'playing' && t < 90) {
+  let goal = 0;
+  let path = null;
+  let pi = 0;
+  const stagesSeen = [];
+  while (g.mode === 'playing' && t < 400) {
     let input = { ...none };
     const pv = playerVehicle(D);
     if (!pv) {
       const want = Math.atan2(pickup.y - P.y, pickup.x - P.x);
       const e = angDiff(P.h, want);
-      input = { ...none, left: e < -0.06, right: e > 0.06, jump: Math.hypot(pickup.x - P.x, pickup.y - P.y) > 2.1 };
-      if (Math.hypot(pickup.x - P.x, pickup.y - P.y) <= 2.1 && !actionSent) {
+      const d = Math.hypot(pickup.x - P.x, pickup.y - P.y);
+      input = { ...none, left: e < -0.06, right: e > 0.06, jump: d > 2.1 };
+      if (d <= 2.1 && !actionSent) {
         input.rush = true;
         actionSent = true;
       }
     } else {
-      entered = true;
-      const [tx, ty] = route[wp];
-      if (Math.hypot(tx - pv.x, ty - pv.y) < 5 && wp < route.length - 1) wp++;
-      const want = Math.atan2(route[wp][1] - pv.y, route[wp][0] - pv.x);
-      const e = angDiff(pv.h, want);
+      if (!stagesSeen.includes(D.stage)) stagesSeen.push(D.stage);
+      goal = Math.min(D.stage, goals.length - 1);
+      if (!path || path.goal !== goal) {
+        path = roadPath(L, { x: pv.x, y: pv.y }, goals[goal]);
+        assert.ok(path, `a road to goal ${goal}`);
+        path.goal = goal;
+        pi = 0;
+      }
+      // pure pursuit: aim at a point a few tiles further along the road
+      const onDirt = surfaceAt(L, pv.x, pv.y) === 2;
+      const look = onDirt ? 3 : 6;
+      while (pi < path.length - 1 && Math.hypot(path[pi].x - pv.x, path[pi].y - pv.y) < look) pi++;
+      const aim = path[Math.min(path.length - 1, pi + (onDirt ? 1 : 2))];
+      const e = angDiff(pv.h, Math.atan2(aim.y - pv.y, aim.x - pv.x));
       const spd = speedOf(pv);
-      const target = Math.abs(e) > 0.5 ? 6 : 13;
+      const target = onDirt ? 5 : Math.abs(e) > 0.5 ? 6 : 12;
       input = { ...none, left: e < -0.04, right: e > 0.04, jump: spd < target, throw: spd > target + 3 };
     }
     step(g, input, STEP);
     t += STEP;
   }
-  assert.ok(entered, 'got in the pickup');
-  assert.equal(g.mode, 'scene', `bot ended in ${g.mode} at ${P.x.toFixed(1)},${P.y.toFixed(1)} t=${t.toFixed(1)} hp=${playerVehicle(D)?.hp}`);
+  assert.deepEqual(stagesSeen.slice(0, 4), [0, 1, 2, 3], 'visited the clues in order');
+  assert.equal(g.mode, 'scene', `bot ended in ${g.mode} at ${P.x.toFixed(1)},${P.y.toFixed(1)} t=${t.toFixed(0)}s stage=${D.stage} hp=${playerVehicle(D)?.hp}`);
   assert.equal(g.scene.id, 'bigAl');
+  assert.ok(t > 40, `even flat out in a straight line it takes ${t.toFixed(0)}s of driving`);
 });

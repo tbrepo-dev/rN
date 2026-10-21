@@ -33,7 +33,7 @@ const STORY = {
   },
   7: {
     title: "BIG AL'S LIQUOR STORE",
-    text: "Billy climbs off the toilet, singed and thirsty.\nBig Al's Liquor Store is out there somewhere. Steal a ride (a pickup, a tractor or a trash truck), drive around Hick Town, and find it. Watch out for the cops!",
+    text: "Billy climbs off the toilet, singed and thirsty.\nBig Al's Liquor Store moved, and nobody can say where. Steal a ride (a pickup, a tractor or a trash truck) and hunt for it across Hick Town. Follow the leads, watch out for decoy signs and fake stores, and watch out for the cops!",
   },
   6: {
     title: 'HELL',
@@ -494,7 +494,7 @@ export default function App() {
           {g.levelNo === 2 && <Text style={styles.hint}>Aliens drop ⚡ ammo for the ray gun.{'\n'}Your 🌽 button fires the ray gun whenever you have ammo.</Text>}
           {g.levelNo === 3 && <Text style={styles.hint}>🗡️ Fire slashes enemies up close, then shoots.{'\n'}Hold 🛡️ to block from the front.</Text>}
           {g.levelNo === 4 && <Text style={styles.hint}>Hug the edge of a girder and jump up through the gap. Barrels roll toward you!{'\n'}Shoot or slash them, or hold 🛡️ to block.</Text>}
-          {g.levelNo === 7 && <Text style={styles.hint}>◀ ▶ steer, GAS drives (or walks), 🛑 brakes and reverses.{'\n'}The ACTION button gets in a ride or out of it, or CARJACKS a farmer (he'll tell you where Big Al's is). Follow the road signs!</Text>}
+          {g.levelNo === 7 && <Text style={styles.hint}>◀ ▶ steer, GAS drives (or walks), 🛑 brakes and reverses.{'\n'}ACTION gets in or out of a ride, or CARJACKS a farmer (he may know a lead, or nothing at all).{'\n'}Each landmark you reach gives the next clue. The map only shows your current lead.</Text>}
           {g.levelNo === 6 && <Text style={styles.hint}>Grab flaming tequila 🔥, then tap FIRE to BELCH a flame ball.{'\n'}Pack Billy eats them. Feed him 5. He can't be hurt, so keep moving!</Text>}
           {g.levelNo === 5 && <Text style={styles.hint}>Jump Max's shockwaves, and hit him while he's winded: he takes DOUBLE damage.{'\n'}Grab the 1UP barrel on the rooftops.</Text>}
           <Text style={styles.tap}>Tap to begin</Text>

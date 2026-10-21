@@ -69,25 +69,55 @@ function circleVsRect(c, r) {
   return { nx: dx / d, ny: dy / d, pen: c.r - d };
 }
 
-// Everything solid and static near a point: building/pond rectangles and trees (circles)
+// Everything solid and static is bucketed into 12x12 cells so the big map stays fast
+function indexFor(L) {
+  if (L._idx) return L._idx;
+  const cs = 12;
+  const cols = Math.ceil(L.w / cs);
+  const rows = Math.ceil(L.h / cs);
+  const cb = Array.from({ length: cols * rows }, () => []);
+  const ct = Array.from({ length: cols * rows }, () => []);
+  const addRect = (r) => {
+    for (let cy = Math.floor(r.y / cs); cy <= Math.floor((r.y + r.h) / cs); cy++)
+      for (let cx = Math.floor(r.x / cs); cx <= Math.floor((r.x + r.w) / cs); cx++) if (cx >= 0 && cy >= 0 && cx < cols && cy < rows) cb[cy * cols + cx].push(r);
+  };
+  L.buildings.forEach(addRect);
+  L.ponds.forEach(addRect);
+  L.trees.forEach((t) => {
+    const cx = clamp(Math.floor(t.x / cs), 0, cols - 1);
+    const cy = clamp(Math.floor(t.y / cs), 0, rows - 1);
+    ct[cy * cols + cx].push(t);
+  });
+  L._idx = { cs, cols, rows, cb, ct, stamp: 0 };
+  return L._idx;
+}
+
 function staticContacts(L, c) {
+  const I = indexFor(L);
   const out = [];
-  for (const b of L.buildings) {
-    if (c.x < b.x - 3 || c.x > b.x + b.w + 3 || c.y < b.y - 3 || c.y > b.y + b.h + 3) continue;
-    const hit = circleVsRect(c, b);
-    if (hit) out.push(hit);
-  }
-  for (const p of L.ponds) {
-    const hit = circleVsRect(c, p);
-    if (hit) out.push(hit);
-  }
-  for (const t of L.trees) {
-    if (Math.abs(t.x - c.x) > 3 || Math.abs(t.y - c.y) > 3) continue;
-    const dx = c.x - t.x;
-    const dy = c.y - t.y;
-    const d = Math.hypot(dx, dy);
-    const rr = c.r + 0.45;
-    if (d < rr) out.push(d === 0 ? { nx: 1, ny: 0, pen: rr } : { nx: dx / d, ny: dy / d, pen: rr - d });
+  const reach = c.r + 0.7;
+  const x0 = clamp(Math.floor((c.x - reach) / I.cs), 0, I.cols - 1);
+  const x1 = clamp(Math.floor((c.x + reach) / I.cs), 0, I.cols - 1);
+  const y0 = clamp(Math.floor((c.y - reach) / I.cs), 0, I.rows - 1);
+  const y1 = clamp(Math.floor((c.y + reach) / I.cs), 0, I.rows - 1);
+  I.stamp++;
+  for (let cy = y0; cy <= y1; cy++) {
+    for (let cx = x0; cx <= x1; cx++) {
+      for (const r of I.cb[cy * I.cols + cx]) {
+        if (r._s === I.stamp) continue;
+        r._s = I.stamp;
+        const hit = circleVsRect(c, r);
+        if (hit) out.push(hit);
+      }
+      for (const t of I.ct[cy * I.cols + cx]) {
+        const dx = c.x - t.x;
+        const dy = c.y - t.y;
+        const rr = c.r + 0.45;
+        if (Math.abs(dx) > rr || Math.abs(dy) > rr) continue;
+        const dd = Math.hypot(dx, dy);
+        if (dd < rr) out.push(dd === 0 ? { nx: 1, ny: 0, pen: rr } : { nx: dx / dd, ny: dy / dd, pen: rr - dd });
+      }
+    }
   }
   // the edge of the map
   if (c.x < c.r + 1) out.push({ nx: 1, ny: 0, pen: c.r + 1 - c.x });
@@ -164,6 +194,9 @@ export function createDrive(L, { traffic = true, cops = true, respawn = null } =
     randCopT: 38,
     bust: 0,
     found: false,
+    stage: respawn?.stage ?? 0, // how far along the treasure hunt for Big Al's you are
+    clueCd: 0,
+    fakeCd: 0,
     prompt: null,
     hint: null,
     crimeCd: 0,
@@ -171,13 +204,18 @@ export function createDrive(L, { traffic = true, cops = true, respawn = null } =
     crashCd: 0,
     prevAction: false,
     respawnAt: respawn,
-    checkpointHit: !!respawn,
     cam: { x: 0, y: 0 },
   };
   const start = respawn || L.spawn;
   D.player = { x: start.x, y: start.y, h: 0, vx: 0, vy: 0, vehicle: null, r: 0.35, invuln: 0 };
   for (const p of L.parked) addVehicle(D, p.type, p.x, p.y, p.h, { color: p.color });
-  if (respawn) addVehicle(D, 'pickup', respawn.x + 3, respawn.y + 3, 0, { color: '#b5472a' });
+  if (respawn) {
+    // a pickup waiting nearby, on open ground
+    const spot = [[3, 0], [-3, 0], [0, 3], [0, -3], [4, 4], [-4, -4]].map(([dx, dy]) => ({ x: respawn.x + dx, y: respawn.y + dy })).find((s) => !isBlocked(L, s.x, s.y) && !isBlocked(L, s.x + 1.5, s.y) && !isBlocked(L, s.x - 1.5, s.y));
+    if (spot) addVehicle(D, 'pickup', spot.x, spot.y, 0, { color: '#b5472a' });
+  } else {
+    D.hint = { text: L.startNote, t: 10 };
+  }
   if (traffic) {
     L.traffic.forEach((t, i) => {
       const a = t.route[t.start % t.route.length];
@@ -652,13 +690,49 @@ function updateCops(g, api, dt) {
   }
 }
 
-function hintText(L, P) {
-  const dx = L.store.cx - P.x;
-  const dy = L.store.cy - P.y;
-  const ang = (Math.atan2(dy, dx) + TAU) % TAU;
-  const dir = HINT_DIRS[Math.round(ang / (TAU / 8)) % 8];
-  const miles = Math.max(1, Math.round(Math.hypot(dx, dy) / 12));
-  return `Big Al's? Thataway! Head ${dir}, about ${miles} mile${miles > 1 ? 's' : ''}!`;
+function compass(from, to) {
+  const ang = (Math.atan2(to.y - from.y, to.x - from.x) + TAU) % TAU;
+  return HINT_DIRS[Math.round(ang / (TAU / 8)) % 8];
+}
+
+// What the farmer you just carjacked tells you, depending on how far along the hunt you are.
+// Some of them don't know anything at all.
+function hintText(D, L, P) {
+  if (rnd(D) < 0.25) {
+    const dud = ["Big Al's? Never heard of him. Ask somebody else!", "I'm just trying to get to church, buddy.", "Big Al's... was that the one that burned down? Or the other one?", "Hmm. Sounds familiar. Nope."];
+    return dud[Math.floor(rnd(D) * dud.length)];
+  }
+  const s = D.stage;
+  if (s < L.clues.length) {
+    const c = L.clues[s];
+    const where = s === 0 ? 'Honky Tonk, over in Buckeye Junction' : s === 1 ? "Pete's junkyard" : 'big dead tree up on the highway';
+    return `Big Al's? Ask at the ${where}. It's ${compass(P, c)} of here.`;
+  }
+  return `Al's out in the woods ${compass(P, L.store)} of here. Take the dirt road from the dead tree.`;
+}
+
+// Checking in at a landmark gets you the next clue, and counts as a checkpoint
+function checkClues(g, api) {
+  const D = g.drive;
+  const L = g.level;
+  const P = D.player;
+  L.clues.forEach((c, idx) => {
+    if (Math.hypot(c.x - P.x, c.y - P.y) > c.r) return;
+    if (idx === D.stage) {
+      D.stage++;
+      D.hint = { text: c.text, t: 11 };
+      api.toast(`Clue found at ${c.name}!`);
+      api.emit('clue');
+      g.score += 300;
+      const rt = nearestRoadTile(L, c.x, c.y, 24);
+      const spot = rt >= 0 ? { x: (rt % L.w) + 0.5, y: Math.floor(rt / L.w) + 0.5 } : { x: P.x, y: P.y };
+      D.respawnAt = { ...spot, stage: D.stage };
+      api.setCheckpoint(D.respawnAt);
+    } else if (idx > D.stage && D.clueCd <= 0) {
+      D.clueCd = 10;
+      api.toast('Nobody here is talking. You are missing a lead...');
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -707,7 +781,7 @@ function handleAction(g, api) {
     // pull him out! (and he tells you where Big Al's is, because hillbillies are like that)
     const ped = ejectDriver(g, v, false);
     fx(D, ped.x, ped.y - 1.2, SHOUTS[Math.floor(rnd(D) * SHOUTS.length)]);
-    D.hint = { text: hintText(L, P), t: 6 };
+    D.hint = { text: hintText(D, L, P), t: 7 };
     g.score += 200;
     addHeat(D, 0.9);
     api.emit('carjack');
@@ -730,6 +804,8 @@ export function stepDrive(g, input, dt, api) {
   D.time += dt;
   D.crimeCd = Math.max(0, D.crimeCd - dt);
   D.honkCd = Math.max(0, D.honkCd - dt);
+  D.clueCd = Math.max(0, D.clueCd - dt);
+  D.fakeCd = Math.max(0, D.fakeCd - dt);
   D.crashCd = Math.max(0, D.crashCd - dt);
   P.invuln = Math.max(0, P.invuln - dt);
   if (D.hint) D.hint.t -= dt, D.hint.t <= 0 && (D.hint = null);
@@ -875,16 +951,18 @@ export function stepDrive(g, input, dt, api) {
       fx(D, pk.x, pk.y - 0.6, '+100');
     }
   }
-  const cp = L.checkpoints[0];
-  if (!D.checkpointHit && cp && Math.hypot(cp.x - me.x, cp.y - me.y) < cp.r) {
-    D.checkpointHit = true;
-    D.respawnAt = { x: cp.x - 4, y: cp.y + 3.5 };
-    api.setCheckpoint(D.respawnAt);
-    api.toast('Checkpoint: Town Center!');
-  }
-  if (!D.found && Math.hypot(L.store.cx - me.x, L.store.cy - me.y) < 40) {
+  checkClues(g, api);
+  if (!D.found && Math.hypot(L.store.cx - me.x, L.store.cy - me.y) < 18) {
     D.found = true;
-    api.toast("There it is... Big Al's Liquor Store!");
+    api.toast("There it is... Big Al's Liquor Store, hidden in the woods!");
+  }
+  for (const fs of L.fakeStores) {
+    const dz = fs.door;
+    if (me.x > dz.x && me.x < dz.x + dz.w && me.y > dz.y && me.y < dz.y + dz.h && D.fakeCd <= 0) {
+      D.fakeCd = 6;
+      fx(D, me.x, me.y - 2, 'CLOSED!');
+      api.toast(fs.msg);
+    }
   }
   const door = L.store.door;
   const inDoor = me.x > door.x && me.x < door.x + door.w && me.y > door.y && me.y < door.y + door.h;
