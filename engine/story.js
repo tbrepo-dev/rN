@@ -168,6 +168,36 @@ export const SCENES = {
       { who: 'queen', text: 'Go on. Git. But something far worse is coming. It has a fur hat.' },
       { who: 'narrator', text: 'The hive shudders. A hatch opens to the sky. Somewhere far away, a small grey cat purrs...' },
     ],
+    then: { scene: 'tournament' },
+  },
+
+  // The hatch opens onto an arena
+  tournament: {
+    bg: 'arena',
+    cast: ['billy', 'jinxy'],
+    lines: [
+      { who: 'narrator', text: 'The hatch spirals open. Floodlights. A roaring crowd. A chain-link cage.' },
+      { who: 'jinxy', text: 'Welcome to the Hillbilly Cage Match, cowboy. You have been so much fun to watch.' },
+      { who: 'billy', text: "I knew it. Fur hat. You've been behind all of this." },
+      { who: 'jinxy', text: 'Three fights. Cousin Cletus. Granny Mae. And then, me.' },
+      { who: 'jinxy', text: 'Win, and you go free. Lose, and... well. The pills are still on the table.' },
+      { who: 'billy', text: "Fine. Punch, kick, fireball, and maybe a fatality or two. Let's rumble." },
+      { who: 'narrator', text: 'Tip: when you KO the last round, FINISH HIM! Press two buttons for a fatality: PUNCH,KICK  KICK,PUNCH  SPECIAL,SPECIAL  or PUNCH,PUNCH.' },
+    ],
+    then: { level: 9 },
+  },
+
+  // After beating Jinxy
+  champion: {
+    bg: 'arena',
+    cast: ['billy', 'jinxy'],
+    lines: [
+      { who: 'narrator', text: 'Jinxy hits the mat. The crowd goes silent. Then it ERUPTS.' },
+      { who: 'jinxy', text: '...Impressive. Nobody has ever done that.' },
+      { who: 'billy', text: 'Do I get my freedom?' },
+      { who: 'jinxy', text: 'Oh, sure. But I am only the middle manager. Somebody bigger is watching.' },
+      { who: 'narrator', text: 'High above the arena, a giant shadow turns its head...' },
+    ],
     then: { ending: 'tbc' },
   },
 };

@@ -34,6 +34,8 @@ const MUSIC = {
   // The Hive: a slow, dripping, dissonant creep
   hive: { prog: ['Em', 'Em', 'F', 'Em', 'Am', 'Am', 'F', 'E'], roll: [0, 3, 1, 3, 0, 2, 1, 3], bpm: 92, type: 'triangle', oct: 0.5, vol: 1.8 },
   egg: { prog: ['Am', 'F', 'Am', 'E', 'Am', 'F', 'E', 'E'], roll: [0, 2, 3, 2, 0, 1, 3, 1], bpm: 78, type: 'sine', oct: 1, vol: 2 },
+  // The cage match: a fast, stompy minor groove
+  fight: { prog: ['Em', 'Em', 'Am', 'Em', 'C', 'D', 'Em', 'E'], roll: [0, 3, 0, 2, 0, 3, 1, 2], bpm: 156, type: 'sawtooth', oct: 0.75, vol: 1.1 },
   japan: { prog: ['Am', 'Am', 'F', 'Am', 'Dm', 'Am', 'E', 'Am'], roll: [0, 2, 3, 1, 3, 2, 1, 2], bpm: 112, type: 'triangle', oct: 2, vol: 1.6 },
 };
 let tune = MUSIC.holler;
@@ -216,6 +218,29 @@ const SFX = {
     for (let i = 0; i < 5; i++) slide(2400 - i * 200, 900, t + i * 0.03, 0.05, 0.05, 'sawtooth');
   },
   portal: (t) => [220, 330, 440, 660, 880].forEach((f, i) => slide(f, f * 1.5, t + i * 0.05, 0.25, 0.1, 'sine')),
+  punch: (t) => slide(260, 90, t, 0.08, 0.2, 'square'),
+  kick: (t) => {
+    slide(200, 60, t, 0.12, 0.26, 'sawtooth');
+    slide(600, 150, t, 0.06, 0.1, 'square');
+  },
+  whiff: (t) => slide(700, 400, t, 0.06, 0.04, 'triangle'),
+  fire: (t) => {
+    slide(300, 900, t, 0.25, 0.14, 'sawtooth');
+    slide(150, 450, t, 0.25, 0.1, 'square');
+  },
+  spin: (t) => [0, 1, 2, 3].forEach((i) => slide(500, 900, t + i * 0.12, 0.1, 0.08, 'triangle')),
+  uppercut: (t) => slide(200, 900, t, 0.25, 0.16, 'sawtooth'),
+  ko: (t) => {
+    slide(160, 40, t, 0.8, 0.3, 'sawtooth');
+    [392, 330, 262].forEach((f, i) => pluck(f, t + 0.1 + i * 0.18, 0.4, 0.12, 'triangle'));
+  },
+  round: (t) => [392, 523, 659, 784].forEach((f, i) => pluck(f, t + i * 0.07, 0.25, 0.13, 'square')),
+  press: (t) => pluck(1568, t, 0.06, 0.08, 'triangle'),
+  fatality: (t) => {
+    slide(90, 30, t, 1.2, 0.35, 'sawtooth');
+    slide(60, 25, t + 0.2, 1.2, 0.3, 'square');
+    [196, 185, 175, 165].forEach((f, i) => pluck(f, t + 0.3 + i * 0.3, 0.8, 0.14, 'sawtooth'));
+  },
   gameover: (t) => [330, 262, 196].forEach((f, i) => pluck(f, t + i * 0.25, 0.4, 0.14, 'triangle')),
 };
 

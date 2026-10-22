@@ -39,6 +39,7 @@ On the title screen, the game-over screen or the pause menu, tap **🔑 ENTER CO
 | 6660 | 6. Hell |
 | 4200 | 7. Big Al's Liquor Store |
 | 1337 | 8. The Hive |
+| 1999 | 9. Hillbilly Cage Match |
 | 2718 | The secret Egg Chamber (inside the Hive; no bazooka until you crack the Queen Egg) |
 
 On the web you can also type the code on a keyboard.
@@ -73,7 +74,12 @@ Extra lives (1UP) come from: a hidden 1UP pickup in every level (look above the 
    - **Save stations** set your checkpoint and refill your armor. **Energy tanks** (two in the Hive, one in the Egg Chamber) give +1 armor for good. Acid burns and bounces you out.
    - **Creatures:** face-huggers leap at you, xenos sprint, spitters lob acid, drones fly. **Eggs hatch a hugger when you walk up**, so shoot them from a distance and you get a **rocket** instead.
    - **The secret:** a cracked wall in the first cavern hides a portal into **the Egg Chamber**, a whole separate map (it has its own saves, tank, creatures and a climb). At the top waits the **Queen Egg**: crack it open and harvest the **Egg-zooka**, a rocket launcher (🚀 button, or Q on a keyboard). Back in the Hive, rockets open the red door and are the only thing that hurts the Queen.
-   - **The Alien Queen** is a cross between a Giger xenomorph and a hillbilly: black chitin, a straw hat, overalls, drool and a big pair of bunny teeth. Her armor shrugs off corn, rays, sword, rush and stomps; only rockets hurt her. She whips ground waves (jump them), spits acid, pounces, and at half health screeches up more huggers. Egg pods keep appearing in her nest; shoot one for a rocket refill. Beat her and it's *to be continued* once again.
+   - **The Alien Queen** is a cross between a Giger xenomorph and a hillbilly: black chitin, a straw hat, overalls, drool and a big pair of bunny teeth. Her armor shrugs off corn, rays, sword, rush and stomps; only rockets hurt her. She whips ground waves (jump them), spits acid, pounces, and at half health screeches up more huggers. Egg pods keep appearing in her nest; shoot one for a rocket refill. Beat her and the hatch opens onto an arena...
+
+9. **Hillbilly Cage Match** (a Street Fighter-style fighting game): Jinxy has Billy in a cage. Three one-on-one fights, best of three rounds, against **Cousin Cletus** (slow brawler), **Granny Mae** (blocks and throws fireballs) and finally **Jinxy** (fast, with every special). Your armor gear gives you extra health.
+   - **Buttons:** 👊 PUNCH, 🦵 KICK (slower, harder, longer reach), 🛡️ BLOCK (hold; blocked hits do almost nothing), JUMP, and 🔥 SPECIAL: alone it throws a **fireball**, with ▶ it's a **spinning kick** (three hits), with ◀ it's an **uppercut** (invulnerable as it starts, great against jump-ins). Specials have short cooldowns, shown under your health bar. Keyboard: X punch, C kick, V block, Q special.
+   - **Fatalities:** win the deciding round by KO and you get **FINISH HIM!** with about seven seconds to press two buttons in a row: PUNCH, KICK = **Corn Cob Smash**; KICK, PUNCH = **Outhouse Express**; SPECIAL, SPECIAL = **Moonshine Meltdown**; PUNCH, PUNCH = **Moon Shot**. (Cartoon style, no blood.) A fatality scores a 1000-point bonus, but skipping it is fine.
+   - Lose a match and you lose a life and rematch the same fighter. Beat Jinxy and it's *to be continued* once again.
 
 Gear you miss is waiting in a loot chest at the end of each level. Gear, ammo, lives and score carry from level to level. In the tower and pagoda, Billy keeps his full knight-alien kit.
 

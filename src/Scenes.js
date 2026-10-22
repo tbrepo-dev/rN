@@ -122,6 +122,20 @@ function Backdrop({ bg, w, h, t }) {
           <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, height: 8, backgroundColor: '#7a5a8a' }} />
         </View>
       );
+    case 'arena':
+      return (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#1a1030' }]} />
+          {[0.15, 0.5, 0.85].map((f, i) => (
+            <View key={f} style={{ position: 'absolute', left: w * f - 50, top: 0, width: 0, height: 0, borderLeftWidth: 50, borderRightWidth: 50, borderTopWidth: floorY, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: `rgba(255,246,192,${0.1 + 0.04 * Math.sin(t * 2 + i)})`, transform: [{ rotate: '180deg' }] }} />
+          ))}
+          <Text style={{ position: 'absolute', left: 0, right: 0, top: h * 0.3, fontSize: 28, letterSpacing: 8, opacity: 0.55, textAlign: 'center' }}>🤠 👨‍🌾 🐔 👩‍🌾 🐗 🧔 🐄 👴 🤠 👨‍🌾 🐔</Text>
+          {Array.from({ length: 30 }, (_, i) => (
+            <View key={i} style={{ position: 'absolute', left: (w / 29) * i, top: h * 0.2, width: 2, height: floorY - h * 0.2, backgroundColor: 'rgba(200,210,230,0.3)' }} />
+          ))}
+          <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, bottom: 0, backgroundColor: '#6a4a2a' }} />
+        </View>
+      );
     case 'gates':
       return (
         <View style={StyleSheet.absoluteFill}>

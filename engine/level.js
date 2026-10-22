@@ -830,8 +830,33 @@ export function buildSecret(id) {
   throw new Error(`no secret level ${id}`);
 }
 
-export const LEVEL_COUNT = 8;
-const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell, buildTown, buildHive];
+// Level 9: the cage match (a fighting game; see fight.js). No tiles, but it carries the fields the rest of the game reads.
+function buildFight() {
+  return {
+    kind: 'fight',
+    id: 9,
+    name: 'Hillbilly Cage Match',
+    theme: 'fight',
+    w: 16,
+    h: 8,
+    groundY: 7,
+    tiles: [[0]],
+    crates: {},
+    coins: [],
+    spawns: [],
+    lives: [],
+    startX: 2,
+    totalJugs: 0,
+    goalJugs: 0,
+    gearPool: [],
+    collectible: 'none',
+    goalKind: 'fight',
+    winScene: 'champion',
+  };
+}
+
+export const LEVEL_COUNT = 9;
+const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell, buildTown, buildHive, buildFight];
 
 export function buildLevel(n = 1) {
   return BUILDERS[n - 1]();

@@ -1,6 +1,7 @@
 import { buildLevel, buildSecret, LEVEL_COUNT, EMPTY, CRATE, USED, BREAKABLE, DOOR_BLUE, DOOR_RED, ACID, VIEW_H } from './level.js';
 import { SCENES } from './story.js';
 import { createDrive, stepDrive } from './drive.js';
+import { createFight, stepFight, OPPONENTS } from './fight.js';
 
 export { LEVEL_COUNT };
 export const STEP = 1 / 60;
@@ -113,18 +114,21 @@ const ENEMY_KINDS = {
 };
 
 // Starting at a later level (the secret codes) hands Billy what he would have found on the way
+export const EGG_CODE_LEVEL = 10; // the secret Egg Chamber has its own level-select number
+
 export function createGameAt(code) {
-  const n = Math.min(code, LEVEL_COUNT);
+  const n = code === EGG_CODE_LEVEL ? 8 : code;
   const g = createGame({ level: n });
   if (n >= 3) ['raygun', 'antenna', 'vest'].forEach((k) => (g.gear[k] = true));
   if (n >= 4) ['sword', 'shield', 'knightHelm', 'plate'].forEach((k) => (g.gear[k] = true));
   if (n >= 3) g.ammo = 15;
   if (n >= 8) g.lives = 5;
+  if (n >= 9) g.gear.bazooka = true;
   if (n > 1) {
     respawn(g);
     g.mode = 'intro';
   }
-  if (code === LEVEL_COUNT + 1) {
+  if (code === EGG_CODE_LEVEL) {
     enterSecret(g, 'egg');
     g.mode = 'intro';
   }
@@ -162,6 +166,8 @@ export function createGame({ enemies = true, level = 1 } = {}) {
     tequilaIdx: 0,
     checkpoint: 2,
     drive: null,
+    fight: null,
+    fightIdx: 0,
     driveCheckpoint: null,
     checkpointFloor: 9,
     checkpointHit: false,
@@ -212,6 +218,7 @@ export function loadLevel(g, n) {
   g.loot = [];
   g.stack = [];
   g.saveIdx = -1;
+  g.fightIdx = 0;
   g.version++;
   respawn(g);
   if (n > 1) g.mode = 'intro';
@@ -322,6 +329,22 @@ export function respawn(g) {
     g.enemies = [];
     g.prevRush = false;
     g.drive = createDrive(g.level, { traffic: g.enemiesEnabled, cops: g.enemiesEnabled, respawn: g.driveCheckpoint });
+    return;
+  }
+  if (g.level.kind === 'fight') {
+    g.player = newPlayer(2, 9);
+    g.player.armor = armorMax(g);
+    g.mode = 'playing';
+    g.deathT = 0;
+    g.items = [];
+    g.cobs = [];
+    g.rays = [];
+    g.belches = [];
+    g.shots = [];
+    g.missiles = [];
+    g.effects = [];
+    g.enemies = [];
+    g.fight = createFight(g.fightIdx, { hpBonus: armorMax(g) * 8, seed: 1234 + g.lives });
     return;
   }
   let x = g.checkpoint;
@@ -525,6 +548,7 @@ export function step(g, input, dt = STEP) {
   g.portalCd = Math.max(0, g.portalCd - dt);
   if (g.mode === 'scene' && g.scene) g.scene.t += dt;
   if (g.level.kind === 'drive') return stepDriveMode(g, input, dt);
+  if (g.level.kind === 'fight') return stepFightMode(g, input, dt);
   if (g.mode === 'dying') return stepDying(g, dt);
   if (g.mode !== 'playing') return;
 
@@ -564,6 +588,38 @@ export function step(g, input, dt = STEP) {
   if (g.level.scrollY) {
     const ty = clamp(p.y + p.h / 2 - VIEW_H * 0.55, 0, g.level.h - VIEW_H);
     g.camY += (ty - g.camY) * Math.min(1, dt * 6);
+  }
+}
+
+// Level 9 is a one-on-one fighting game (see fight.js)
+function stepFightMode(g, input, dt) {
+  if (g.mode === 'dying') {
+    g.deathT += dt;
+    if (g.deathT > 1.2) {
+      g.lives--;
+      if (g.lives <= 0) {
+        g.mode = 'gameover';
+        emit(g, 'gameover');
+      } else respawn(g); // rematch against the same opponent
+    }
+    return;
+  }
+  if (g.mode !== 'playing') return;
+  const F = g.fight;
+  const done = stepFight(F, input, dt);
+  for (const ev of F.events.splice(0)) emit(g, ev);
+  g.shake = Math.max(g.shake, F.shake);
+  if (done === 'lost') die(g);
+  else if (done === 'won') {
+    g.score += 1500 + (F.fatality ? 1000 : 0) + Math.round(F.p.hp * 10);
+    if (g.fightIdx + 1 < OPPONENTS.length) {
+      g.fightIdx++;
+      g.fight = createFight(g.fightIdx, { hpBonus: armorMax(g) * 8, seed: 1234 + g.lives });
+      toast(g, `Next up: ${OPPONENTS[g.fightIdx].name}`);
+    } else {
+      g.fightWon = true;
+      win(g);
+    }
   }
 }
 
