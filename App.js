@@ -414,25 +414,26 @@ export default function App() {
   const shineC = { x: jumpC.x + 2, y: jumpC.y - 52 - 20 - 32, r: 32 };
   const shieldC = { x: jumpC.x - 96, y: jumpC.y - 138, r: 30 };
   const bazC = { x: jumpC.x - 172, y: jumpC.y + 6, r: 34 };
-  // The cage match has its own layout: a d-pad with JUMP on top on the left, and a 2x2 pad of
-  // PUNCH / KICK over BLOCK / SPECIAL on the right.
+  const leftC = { x: width * 0.04 + 36, y: height - 28 - 36, r: 36 };
+  const rightC = { x: width * 0.04 + 84 + 36, y: height - 28 - 36, r: 36 };
+  // The cage match has its own layout: ◀ ▶ on the left, and on the right JUMP beside a 2x2 pad of
+  // PUNCH / KICK over BLOCK / SPECIAL, so one thumb walks while the other jumps and fights.
   const fightPad = level.kind === 'fight';
   const fR = 38;
   const fRow2 = height - 26 - fR;
   const fRow1 = fRow2 - fR * 2 - 12;
-  const fCol2 = width - width * 0.04 - fR;
-  const fCol1 = fCol2 - fR * 2 - 12;
+  const fCol3 = width - width * 0.04 - fR;
+  const fCol2 = fCol3 - fR * 2 - 10;
+  const fCol1 = fCol2 - fR * 2 - 10;
   const F9 = {
-    left: { x: width * 0.04 + 38, y: height - 26 - 38, r: 38 },
-    right: { x: width * 0.04 + 38 + 88, y: height - 26 - 38, r: 38 },
-    jump: { x: width * 0.04 + 38 + 44, y: height - 26 - 38 - 88, r: 40 },
-    punch: { x: fCol1, y: fRow1, r: fR },
-    kick: { x: fCol2, y: fRow1, r: fR },
-    block: { x: fCol1, y: fRow2, r: fR },
-    special: { x: fCol2, y: fRow2, r: fR },
+    left: { x: width * 0.05 + 42, y: height - 26 - 42, r: 42 },
+    right: { x: width * 0.05 + 42 + 100, y: height - 26 - 42, r: 42 },
+    jump: { x: fCol1, y: (fRow1 + fRow2) / 2, r: 42 },
+    punch: { x: fCol2, y: fRow1, r: fR },
+    kick: { x: fCol3, y: fRow1, r: fR },
+    block: { x: fCol2, y: fRow2, r: fR },
+    special: { x: fCol3, y: fRow2, r: fR },
   };
-  const leftC = { x: width * 0.04 + 36, y: height - 28 - 36, r: 36 };
-  const rightC = { x: width * 0.04 + 84 + 36, y: height - 28 - 36, r: 36 };
   const actions = fightPad
     ? [
         ['left', F9.left, 1.3],

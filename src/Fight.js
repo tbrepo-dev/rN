@@ -40,16 +40,16 @@ function Chain({ u, x, y, segs }) {
 }
 
 // The segment list for an arm or a leg: upper (a1), lower (a2 relative to the upper), then a hand or boot
-function armSegs(o, a1, a2, u, extra) {
+function armSegs(o, a1, a2, u, extra, ext = 1) {
   return [
-    { w: 0.2, len: 0.4, a: a1, c: o.shirt, bc: o.shirtD, border: 1 },
+    { w: 0.2, len: 0.4 * ext, a: a1, c: o.shirt, bc: o.shirtD, border: 1 },
     {
       w: 0.17,
-      len: 0.38,
+      len: 0.38 * ext,
       a: a2,
       c: o.skin,
       deco: (
-        <View style={{ position: 'absolute', left: -0.06 * u, top: 0.28 * u, width: 0.3 * u, height: 0.26 * u, borderRadius: 0.12 * u, backgroundColor: o.glove, borderWidth: 2, borderColor: o.skinD }}>
+        <View style={{ position: 'absolute', left: -0.06 * u, top: 0.28 * u * ext, width: 0.3 * u, height: 0.26 * u, borderRadius: 0.12 * u, backgroundColor: o.glove, borderWidth: 2, borderColor: o.skinD }}>
           {extra}
         </View>
       ),
@@ -57,17 +57,17 @@ function armSegs(o, a1, a2, u, extra) {
   ];
 }
 
-function legSegs(o, a1, a2, u) {
+function legSegs(o, a1, a2, u, ext = 1) {
   return [
-    { w: 0.28, len: 0.45, a: a1, c: o.pants, bc: o.pantsD, border: 1 },
+    { w: 0.28, len: 0.45 * ext, a: a1, c: o.pants, bc: o.pantsD, border: 1 },
     {
       w: 0.24,
-      len: 0.42,
+      len: 0.42 * ext,
       a: a2,
       c: o.pants,
       bc: o.pantsD,
       border: 1,
-      deco: <View style={{ position: 'absolute', left: -0.04 * u, top: 0.32 * u, width: 0.38 * u, height: 0.2 * u, borderTopRightRadius: 0.14 * u, borderBottomRightRadius: 0.06 * u, borderBottomLeftRadius: 0.04 * u, backgroundColor: o.boot, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)' }} />,
+      deco: <View style={{ position: 'absolute', left: -0.04 * u, top: 0.32 * u * ext, width: 0.38 * u, height: 0.2 * u, borderTopRightRadius: 0.14 * u, borderBottomRightRadius: 0.06 * u, borderBottomLeftRadius: 0.04 * u, backgroundColor: o.boot, borderWidth: 2, borderColor: 'rgba(0,0,0,0.35)' }} />,
     },
   ];
 }
@@ -75,7 +75,7 @@ function legSegs(o, a1, a2, u) {
 // Arm and leg angles for a state. f.t = seconds in the state; T = match clock for idle motion.
 function pose(f, T) {
   const t = f.t;
-  const P = { aF: [-38, -95], aB: [-22, -85], lF: [-14, 14], lB: [16, -12], lean: 0, drop: 0, spin: 0, lie: 0, glow: false, kneel: false, trail: null };
+  const P = { aF: [-38, -95], aB: [-22, -85], lF: [-14, 14], lB: [16, -12], lean: 0, drop: 0, spin: 0, lie: 0, glow: false, kneel: false, trail: null, extA: 1, extL: 1 };
   const bob = Math.sin(T * 5 + f.x * 2);
   switch (f.state) {
     case 'walk': {
@@ -104,6 +104,7 @@ function pose(f, T) {
       const m = MOVES.punch;
       const k = t < m.startup ? 0 : t < m.startup + m.active ? 1 : 0.35;
       P.aF = t < m.startup ? [12, -110] : [-88 * k - 5, -5];
+      P.extA = t < m.startup ? 1 : 1.55;
       P.aB = [-30, -90];
       P.lean = 10 * k;
       P.lF = [-24, 14];
@@ -114,6 +115,7 @@ function pose(f, T) {
       const m = MOVES.kick;
       const act = t >= m.startup && t < m.startup + m.active;
       P.lF = t < m.startup ? [-55, 95] : act ? [-98, 4] : [-40, 60];
+      P.extL = act ? 1.7 : t < m.startup ? 1 : 1.25;
       P.lB = [8, -4];
       P.aF = [-45, -95];
       P.aB = [38, -50];
@@ -134,6 +136,7 @@ function pose(f, T) {
     case 'spin':
       P.spin = t * 1500;
       P.lF = [-96, 4];
+      P.extL = 1.5;
       P.lB = [14, -8];
       P.aF = [-85, -10];
       P.aB = [85, 10];
@@ -343,16 +346,16 @@ function Fighter({ f, ts, T, floorY, ox, win }) {
         <Chain u={u} x={1.1 - 0.17} y={hip} segs={legSegs(o, P.lB[0], P.lB[1], u)} />
         <Chain u={u} x={1.1 - 0.5} y={0.64} segs={armSegs(o, aB[0], aB[1], u)} />
         <Torso f={f} o={o} u={u} />
-        <Chain u={u} x={1.1 + 0.17} y={hip} segs={legSegs(o, P.lF[0], P.lF[1], u)} />
+        <Chain u={u} x={1.1 + 0.17} y={hip} segs={legSegs(o, P.lF[0], P.lF[1], u, P.extL)} />
         {f.who === 'mae' && (
           <View style={{ position: 'absolute', left: 0.62 * u, top: 1.0 * u, width: 0.96 * u, height: 0.55 * u, backgroundColor: '#8a4fd1', borderBottomLeftRadius: 0.4 * u, borderBottomRightRadius: 0.4 * u, borderWidth: 2, borderColor: '#6232a0' }}>
             <View style={{ position: 'absolute', left: 0.14 * u, top: 0, width: 0.68 * u, height: 0.2 * u, backgroundColor: '#fffaf0' }} />
           </View>
         )}
         <Head u={u} P={P} />
-        <Chain u={u} x={1.1 + 0.22} y={0.64} segs={armSegs(o, aF[0], aF[1], u, f.who === 'mae' ? <View style={{ position: 'absolute', left: -0.1 * u, top: 0.04 * u, width: 0.5 * u, height: 0.12 * u, borderRadius: 0.06 * u, backgroundColor: '#c9915a', borderWidth: 2, borderColor: '#8a5a2a' }} /> : null)} />
+        <Chain u={u} x={1.1 + 0.22} y={0.64} segs={armSegs(o, aF[0], aF[1], u, f.who === 'mae' ? <View style={{ position: 'absolute', left: -0.1 * u, top: 0.04 * u, width: 0.5 * u, height: 0.12 * u, borderRadius: 0.06 * u, backgroundColor: '#c9915a', borderWidth: 2, borderColor: '#8a5a2a' }} /> : null, P.extA)} />
         {P.glow && <View style={{ position: 'absolute', left: 1.8 * u, top: 0.4 * u, width: 0.5 * u, height: 0.5 * u, borderRadius: 0.25 * u, backgroundColor: 'rgba(255,200,60,0.85)', borderWidth: 3, borderColor: '#ff7a1a' }} />}
-        {P.trail === 'kick' && <View style={{ position: 'absolute', left: 1.1 * u, top: 0.6 * u, width: 1.35 * u, height: 1.4 * u, borderRadius: 1.4 * u, borderWidth: 4, borderLeftWidth: 0, borderColor: 'rgba(255,255,255,0.7)' }} />}
+        {P.trail === 'kick' && <View style={{ position: 'absolute', left: 1.1 * u, top: 0.5 * u, width: 2.0 * u, height: 1.5 * u, borderRadius: 1.4 * u, borderWidth: 4, borderLeftWidth: 0, borderColor: 'rgba(255,255,255,0.7)' }} />}
         {P.trail === 'up' && <View style={{ position: 'absolute', left: 1.0 * u, top: -0.5 * u, width: 0.9 * u, height: 1.6 * u, borderRadius: 1 * u, borderWidth: 4, borderLeftWidth: 0, borderColor: 'rgba(255,230,120,0.8)' }} />}
         {f.state === 'spin' && <View style={{ position: 'absolute', left: -0.2 * u, top: 0.5 * u, width: 2.6 * u, height: 1.4 * u, borderRadius: 2 * u, borderWidth: 4, borderColor: 'rgba(255,255,255,0.45)' }} />}
         {f.state === 'dizzy' &&

@@ -15,11 +15,11 @@ const FATALITY_TIME = 3.6;
 
 // startup / active / recover are seconds; reach is how far the strike extends past the body
 export const MOVES = {
-  punch: { startup: 0.06, active: 0.1, recover: 0.18, dmg: 7, reach: 1.1, y0: 0.9, y1: 1.5, stun: 0.3, push: 0.6 },
-  kick: { startup: 0.12, active: 0.12, recover: 0.28, dmg: 11, reach: 1.5, y0: 0.2, y1: 1.1, stun: 0.4, push: 1.1 },
+  punch: { startup: 0.06, active: 0.1, recover: 0.18, dmg: 7, reach: 1.6, y0: 0.9, y1: 1.5, stun: 0.3, push: 0.6 },
+  kick: { startup: 0.12, active: 0.12, recover: 0.28, dmg: 11, reach: 2.4, y0: 0.2, y1: 1.1, stun: 0.4, push: 1.1 },
   fireball: { startup: 0.3, active: 0, recover: 0.2, dmg: 13, cd: 1.1 },
-  spin: { startup: 0.05, active: 0.6, recover: 0.25, dmg: 6, reach: 1.35, y0: 0.2, y1: 1.5, stun: 0.3, push: 0.5, cd: 2.6, hits: 3 },
-  uppercut: { startup: 0.04, active: 0.26, recover: 0.3, dmg: 15, reach: 1.0, y0: 0.4, y1: 2.4, stun: 0.5, push: 1.2, cd: 2.2, knock: true },
+  spin: { startup: 0.05, active: 0.6, recover: 0.25, dmg: 6, reach: 1.9, y0: 0.2, y1: 1.5, stun: 0.3, push: 0.5, cd: 2.6, hits: 3 },
+  uppercut: { startup: 0.04, active: 0.26, recover: 0.3, dmg: 15, reach: 1.3, y0: 0.4, y1: 2.4, stun: 0.5, push: 1.2, cd: 2.2, knock: true },
 };
 
 export const FATALITIES = {
@@ -182,6 +182,11 @@ function act(F, f, foe, intent, dt) {
       } else if (grounded(f) && f.state !== 'jump') {
         f.vx = dir * f.speed;
         f.state = dir ? 'walk' : 'idle';
+      } else if (f.state === 'jump') {
+        // steer in mid-air
+        const target = dir * f.speed;
+        const step = 30 * dt;
+        f.vx = f.vx < target ? Math.min(target, f.vx + step) : Math.max(target, f.vx - step);
       }
     } else if (f.state === 'block') f.vx = 0;
   }
@@ -200,7 +205,11 @@ function act(F, f, foe, intent, dt) {
     } else {
       if (f.state === 'spin') f.vx = f.face * (f.t < m.startup + m.active ? 5.5 : 0);
       else if (f.state === 'uppercut') f.vx = f.face * 1.2;
-      else if (grounded(f)) f.vx = 0;
+      else if (grounded(f)) f.vx = dir * f.speed * 0.45; // you can keep walking while you swing
+      else {
+        const target = dir * f.speed;
+        f.vx = f.vx < target ? Math.min(target, f.vx + 30 * dt) : Math.max(target, f.vx - 30 * dt);
+      }
       const t0 = m.startup;
       const t1 = m.startup + m.active;
       if (f.t >= t0 && f.t < t1) strike(F, f, foe, m);
@@ -348,8 +357,8 @@ function aiIntent(F, dt) {
       else if (r < 0.8) plan = { hold: { dir: toward }, holdT: 0.3 };
     } else {
       if (def.up && o.cd.up <= 0 && p.y > 0.6 && r < 0.7) plan = { once: { special: true, dir: -toward } };
-      else if (r < def.aggr * 0.55) plan = { once: { punch: true } };
-      else if (r < def.aggr * 1.0) plan = { once: { kick: true } };
+      else if (r < def.aggr * 0.55 && d < 1.7) plan = { once: { punch: true } };
+      else if (r < def.aggr * 1.0 || d >= 1.7) plan = { once: { kick: true } };
       else if (r < def.aggr * 1.0 + 0.15) plan = { hold: { dir: -toward }, holdT: 0.35 };
       else plan = { hold: { block: true }, holdT: 0.3 };
     }

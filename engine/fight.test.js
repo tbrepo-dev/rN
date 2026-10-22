@@ -57,11 +57,12 @@ test('punch and kick hit up close, kick hits harder and reaches farther', () => 
   assert.equal(hp0 - a.o.hp, MOVES.punch.dmg);
   const b = fighting();
   passive(b);
-  b.o.x = b.p.x + 1.9;
+  b.o.x = b.p.x + 2.4;
   tap(b, 'throw');
   assert.equal(b.o.hp, b.o.maxHp, 'out of punch range');
   tap(b, 'rush');
   assert.ok(b.o.hp < b.o.maxHp, 'kick reaches');
+  assert.ok(MOVES.kick.reach > MOVES.punch.reach * 1.3);
   assert.ok(b.o.maxHp - b.o.hp >= MOVES.kick.dmg - 0.1);
 });
 
@@ -146,13 +147,13 @@ const bot = (F) => {
   const d = Math.abs(F.o.x - F.p.x);
   const t = Math.floor(F.t * 60);
   const toward = F.o.x > F.p.x;
-  const threat = ['punch', 'kick', 'spin'].includes(F.o.state) && d < 2;
+  const threat = ['punch', 'kick', 'spin'].includes(F.o.state) && d < 2.6;
   return {
-    left: !toward && d > 1.2 && !threat,
-    right: toward && d > 1.2 && !threat,
+    left: !toward && d > 1.8 && !threat,
+    right: toward && d > 1.8 && !threat,
     jump: false,
-    throw: d < 1.2 && t % 14 === 0,
-    rush: d < 1.5 && t % 14 === 7,
+    throw: d < 1.6 && t % 14 === 0,
+    rush: d < 2.3 && t % 14 === 7,
     baz: d > 5 && t % 80 === 0,
     shield: threat,
   };
@@ -299,4 +300,20 @@ test('fight events reach the sound system', () => {
   const g = startFight();
   for (let i = 0; i < 200; i++) step(g, none);
   assert.ok(g.events.includes('round'));
+});
+
+test('you can steer in mid-air and keep walking while swinging', () => {
+  const F = fighting();
+  passive(F);
+  F.o.x = 14;
+  tap(F, 'jump', 0);
+  runF(F, { ...none, jump: false, right: true }, 0.3);
+  const x1 = F.p.x;
+  runF(F, { ...none, left: true }, 0.3);
+  assert.ok(F.p.x < x1, 'changed direction in the air');
+  runF(F, none, 1);
+  const x0 = F.p.x;
+  stepFight(F, { ...none, right: true, throw: true }, STEP);
+  runF(F, { ...none, right: true }, 0.2);
+  assert.ok(F.p.x > x0 + 0.2, 'walked while punching');
 });
