@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Platform, Pressable, StyleSheet, AppState, useWindowDimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { createGame, createGameAt, step, STEP, SHINE_MAX, AMMO_MAX, ROCKET_MAX, GEAR, LEVEL_COUNT, continueGame, startPlaying, loadLevel, advanceScene, chooseScene, startScene } from './engine/game';
+import { createGame, createGameAt, step, STEP, SHINE_MAX, AMMO_MAX, ROCKET_MAX, GEAR, LEVEL_COUNT, continueGame, startPlaying, loadLevel, respawn, advanceScene, chooseScene, startScene } from './engine/game';
 import { Billy, Critter, Cob, Ray, Shot, Jug, OneUp, GearItem, Tile, Ground, Emoji, Booth, CastleGate, Fridge, Tequila, FlameBall, HellGate, gearEmoji } from './src/Sprites';
 import { SceneView, EndingView } from './src/Scenes';
 import { HiveTerrain, HiveBackground, HiveCritter, HIVE_KINDS, SaveStation, EnergyTank, Portal, RocketItem, Missile, Boom, MiniMap } from './src/Hive';
@@ -239,6 +239,10 @@ export default function App() {
     window.__billy = g; // handy for debugging in the browser
     window.__loadLevel = (n) => loadLevel(gameRef.current, n);
     window.__scene = (id) => startScene(gameRef.current, id);
+    window.__fight = (n) => {
+      gameRef.current.fightIdx = n;
+      respawn(gameRef.current);
+    };
   }
 
   const start = (lvl) => {
@@ -410,18 +414,46 @@ export default function App() {
   const shineC = { x: jumpC.x + 2, y: jumpC.y - 52 - 20 - 32, r: 32 };
   const shieldC = { x: jumpC.x - 96, y: jumpC.y - 138, r: 30 };
   const bazC = { x: jumpC.x - 172, y: jumpC.y + 6, r: 34 };
+  // The cage match has its own layout: a d-pad with JUMP on top on the left, and a 2x2 pad of
+  // PUNCH / KICK over BLOCK / SPECIAL on the right.
+  const fightPad = level.kind === 'fight';
+  const fR = 38;
+  const fRow2 = height - 26 - fR;
+  const fRow1 = fRow2 - fR * 2 - 12;
+  const fCol2 = width - width * 0.04 - fR;
+  const fCol1 = fCol2 - fR * 2 - 12;
+  const F9 = {
+    left: { x: width * 0.04 + 38, y: height - 26 - 38, r: 38 },
+    right: { x: width * 0.04 + 38 + 88, y: height - 26 - 38, r: 38 },
+    jump: { x: width * 0.04 + 38 + 44, y: height - 26 - 38 - 88, r: 40 },
+    punch: { x: fCol1, y: fRow1, r: fR },
+    kick: { x: fCol2, y: fRow1, r: fR },
+    block: { x: fCol1, y: fRow2, r: fR },
+    special: { x: fCol2, y: fRow2, r: fR },
+  };
   const leftC = { x: width * 0.04 + 36, y: height - 28 - 36, r: 36 };
   const rightC = { x: width * 0.04 + 84 + 36, y: height - 28 - 36, r: 36 };
-  const actions = [
+  const actions = fightPad
+    ? [
+        ['left', F9.left, 1.3],
+        ['right', F9.right, 1.3],
+        ['jump', F9.jump, 1.25],
+        ['throw', F9.punch, 1.25],
+        ['rush', F9.kick, 1.25],
+        ['shield', F9.block, 1.25],
+        ['baz', F9.special, 1.25],
+      ]
+    : [
     ['left', leftC, 1.4],
     ['right', rightC, 1.4],
     ['jump', jumpC, 1.25],
     ['throw', throwC, 1.15],
     ['rush', shineC, 1.2],
   ];
-  if (g.gear.shield || level.kind === 'drive') actions.push(['shield', shieldC, 1.25]);
-  if (g.gear.bazooka || level.kind === 'fight') actions.push(['baz', bazC, 1.25]);
-  if (level.kind === 'fight' && !g.gear.shield) actions.push(['shield', shieldC, 1.25]);
+  if (fightPad) {
+    // (the fight layout above is complete)
+  } else if (g.gear.shield || level.kind === 'drive') actions.push(['shield', shieldC, 1.25]);
+  if (!fightPad && g.gear.bazooka) actions.push(['baz', bazC, 1.25]);
 
   // Multi-touch: left cluster = ◀ ▶, right cluster = JUMP / FIRE / SHINE / SHIELD.
   // A touch goes to whichever button it is closest to (relative to its size).
@@ -438,7 +470,7 @@ export default function App() {
         }
       }
       if (best) next[best] = true;
-      else if (t.pageX > width * 0.75 && t.pageY > height * 0.45) next.jump = true;
+      else if (!fightPad && t.pageX > width * 0.75 && t.pageY > height * 0.45) next.jump = true;
     }
     for (const k of ['jump', 'throw', 'rush', 'baz']) if (next[k]) latchRef.current[k] = true;
     inputRef.current = next;
@@ -586,18 +618,18 @@ export default function App() {
       {/* On-screen controls */}
       {screen === 'play' && isFight && (g.mode === 'playing' || g.mode === 'dying') && (
         <View style={styles.controls} pointerEvents="none">
-          <View style={[styles.btn, { left: leftC.x - leftC.r, opacity: inp.left ? 0.8 : 0.4 }]}><Text style={styles.btnText}>◀</Text></View>
-          <View style={[styles.btn, { left: rightC.x - rightC.r, opacity: inp.right ? 0.8 : 0.4 }]}><Text style={styles.btnText}>▶</Text></View>
-          <View style={[styles.btn, styles.jump, { left: jumpC.x - jumpC.r, top: jumpC.y - jumpC.r, bottom: undefined, opacity: inp.jump ? 0.8 : 0.4 }]}><Text style={styles.btnText}>JUMP</Text></View>
           {[
-            ['throw', throwC, '👊', 'PUNCH', '#ffd23a'],
-            ['rush', shineC, '🦵', 'KICK', '#ff9a2a'],
-            ['shield', shieldC, '🛡️', 'BLOCK', '#9cc7ff'],
-            ['baz', bazC, '🔥', 'SPECIAL', '#ff5a2a'],
+            ['left', F9.left, '◀', 'MOVE', '#cfd6e6'],
+            ['right', F9.right, '▶', '', '#cfd6e6'],
+            ['jump', F9.jump, '⬆', 'JUMP', '#9be37a'],
+            ['throw', F9.punch, '👊', 'PUNCH', '#ffd23a'],
+            ['rush', F9.kick, '🦵', 'KICK', '#ff9a2a'],
+            ['shield', F9.block, '🛡️', 'BLOCK', '#7fb6ff'],
+            ['baz', F9.special, '🔥', 'SPECIAL', '#ff5a2a'],
           ].map(([k, c, icon, label, col]) => (
-            <View key={k} style={[styles.btn, { left: c.x - c.r, top: c.y - c.r, bottom: undefined, width: c.r * 2, height: c.r * 2, borderRadius: c.r, opacity: inp[k] ? 0.9 : 0.55, borderWidth: 3, borderColor: col }]}>
-              <Text style={{ fontSize: 22 }}>{icon}</Text>
-              <Text style={[styles.btnText, { fontSize: 10 }]}>{label}</Text>
+            <View key={k} style={[styles.btn, { left: c.x - c.r, top: c.y - c.r, bottom: undefined, width: c.r * 2, height: c.r * 2, borderRadius: c.r, backgroundColor: inp[k] ? col : 'rgba(10,8,24,0.72)', opacity: inp[k] ? 0.95 : 0.8, borderWidth: 3, borderColor: col }]}>
+              <Text style={{ fontSize: k === 'left' || k === 'right' ? 24 : 24, color: inp[k] ? '#000' : '#fff' }}>{icon}</Text>
+              {k !== 'right' && k !== 'left' && <Text style={[styles.btnText, { fontSize: 10, color: inp[k] ? '#000' : col }]}>{label}</Text>}
             </View>
           ))}
         </View>
