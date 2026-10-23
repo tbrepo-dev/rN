@@ -344,32 +344,73 @@ function aiIntent(F, dt) {
   if (ai.t <= 0 && free(o) && o.state !== 'jump') {
     ai.t = def.react * (0.6 + F.rng() * 0.8);
     const r = F.rng();
-    const threat = (p.state === 'punch' || p.state === 'kick' || p.state === 'spin' || p.state === 'fireball') && d < 2.2;
-    let plan = null;
-    if (threat && r < def.block) plan = { hold: { block: true }, holdT: 0.35 };
-    else if (d > 6.5) {
-      if (def.fire && o.cd.fire <= 0 && r < def.fire + 0.2) plan = { once: { special: true, dir: 0 } };
-      else plan = { hold: { dir: toward }, holdT: 0.4 };
-    } else if (d > 2.4) {
-      if (def.spin && o.cd.spin <= 0 && d < 4 && r < def.aggr * 0.4) plan = { once: { special: true, dir: toward } };
-      else if (def.fire && o.cd.fire <= 0 && r < def.fire * 0.5) plan = { once: { special: true, dir: 0 } };
-      else if (r < def.aggr * 0.25) plan = { once: { jump: true, dir: toward, kick: false } };
-      else if (r < 0.8) plan = { hold: { dir: toward }, holdT: 0.3 };
+    const threat = (p.state === 'punch' || p.state === 'kick' || p.state === 'spin' || p.state === 'fireball') && d < 2.6;
+    ai.hist ??= [];
+    ai.streak ??= 0;
+    const once = (o2) => ({ once: o2, attack: true });
+    const moves = []; // [name, weight, plan]
+    if (threat && r < def.block) moves.push(['block', 100, { hold: { block: true }, holdT: 0.4 }]);
+    if (d > 6.5) {
+      if (def.fire && o.cd.fire <= 0) moves.push(['fire', 3 + def.fire * 10, once({ special: true, dir: 0 })]);
+      moves.push(['approach', 6, { hold: { dir: toward }, holdT: 0.45 }]);
+    } else if (d > 2.6) {
+      if (def.spin && o.cd.spin <= 0 && d < 4.2) moves.push(['spin', 2 + def.aggr * 4, once({ special: true, dir: toward })]);
+      if (def.fire && o.cd.fire <= 0) moves.push(['fire', 2 + def.fire * 6, once({ special: true, dir: 0 })]);
+      moves.push(['jumpin', 1 + def.aggr * 3, once({ jump: true, dir: toward })]);
+      moves.push(['approach', 6, { hold: { dir: toward }, holdT: 0.35 }]);
+      moves.push(['wait', 2, { hold: { dir: 0 }, holdT: 0.3 }]);
     } else {
-      if (def.up && o.cd.up <= 0 && p.y > 0.6 && r < 0.7) plan = { once: { special: true, dir: -toward } };
-      else if (r < def.aggr * 0.55 && d < 1.7) plan = { once: { punch: true } };
-      else if (r < def.aggr * 1.0 || d >= 1.7) plan = { once: { kick: true } };
-      else if (r < def.aggr * 1.0 + 0.15) plan = { hold: { dir: -toward }, holdT: 0.35 };
-      else plan = { hold: { block: true }, holdT: 0.3 };
+      // close quarters: a mix of strikes, specials, backing off and blocking
+      if (def.up && o.cd.up <= 0 && p.y > 0.6) moves.push(['uppercut', 40, once({ special: true, dir: -toward })]);
+      if (d < 1.8) moves.push(['punch', 5 + def.aggr * 5, once({ punch: true })]);
+      else moves.push(['stepin', 5, { hold: { dir: toward }, holdT: 0.25 }]);
+      moves.push(['kick', d < 1.8 ? 2 + def.aggr * 2 : 3 + def.aggr * 3, once({ kick: true })]);
+      if (def.spin && o.cd.spin <= 0) moves.push(['spin', 2 + def.aggr * 2, once({ special: true, dir: toward })]);
+      if (def.fire && o.cd.fire <= 0 && d > 1.4) moves.push(['fire', 2 + def.fire * 4, once({ special: true, dir: 0 })]);
+      moves.push(['backoff', 3, { hold: { dir: -toward }, holdT: 0.4 }]);
+      moves.push(['block', 2 + def.block * 4, { hold: { block: true }, holdT: 0.35 }]);
+      moves.push(['hop', 1.5, once({ jump: true, dir: -toward })]);
     }
-    if (plan) {
-      if (plan.hold) {
-        ai.hold = plan.hold;
-        ai.holdT = plan.holdT;
-        Object.assign(intent, plan.hold);
+    // never the same move more than twice in a row, and rarely twice; and after two attacks in a row, back off
+    const last = ai.hist[ai.hist.length - 1];
+    const last2 = ai.hist[ai.hist.length - 2];
+    let pool = moves.filter(([n]) => !(n === last && n === last2));
+    if (ai.streak >= 2) pool = pool.filter(([, , pl]) => !pl.attack);
+    if (!pool.length) pool = moves;
+    // attacks you just used are much less likely to come out again, so each fighter keeps mixing it up
+    ai.atkHist ??= [];
+    const lastAtk = ai.atkHist[ai.atkHist.length - 1];
+    const lastAtk2 = ai.atkHist[ai.atkHist.length - 2];
+    pool = pool.filter(([n, , pl]) => !(pl.attack && n === lastAtk && n === lastAtk2));
+    if (!pool.length) pool = moves;
+    const weighted = pool.map(([n, w, pl]) => [n, pl.attack && n === lastAtk ? w * 0.08 : n === last ? w * 0.25 : w, pl]);
+    const total = weighted.reduce((a2, m) => a2 + m[1], 0);
+    let roll = F.rng() * total;
+    let choice = weighted[weighted.length - 1];
+    for (const m of weighted) {
+      roll -= m[1];
+      if (roll <= 0) {
+        choice = m;
+        break;
       }
-      if (plan.once) Object.assign(intent, plan.once);
     }
+    const [name, , plan] = choice;
+    ai.hist.push(name);
+    if (ai.hist.length > 4) ai.hist.shift();
+    if (plan.attack) {
+      ai.atkHist.push(name);
+      if (ai.atkHist.length > 3) ai.atkHist.shift();
+      ai.streak++;
+      // a breather after every attack, a longer one for the dumber fighters
+      ai.t += 0.55 + F.rng() * 0.5 + (1 - def.aggr) * 0.6;
+    } else if (name !== 'block') ai.streak = Math.max(0, ai.streak - (name === 'backoff' || name === 'wait' ? 2 : 1));
+    else ai.streak = 0;
+    if (plan.hold) {
+      ai.hold = plan.hold;
+      ai.holdT = plan.holdT;
+      Object.assign(intent, plan.hold);
+    }
+    if (plan.once) Object.assign(intent, plan.once);
   }
   o.canFire = !!def.fire;
   o.canSpin = !!def.spin;

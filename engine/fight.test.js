@@ -319,3 +319,56 @@ test('you can steer in mid-air and keep walking while swinging', () => {
   runF(F, { ...none, right: true }, 0.2);
   assert.ok(F.p.x > x0 + 0.2, 'walked while punching');
 });
+
+test('opponents mix up their attacks instead of chaining the same one', () => {
+  for (let idx = 0; idx < OPPONENTS.length; idx++) {
+    const F = fighting(idx);
+    const seq = [];
+    const times = [];
+    let last = F.o.state;
+    // an unmoving, unhittable target stands right in front of the opponent
+    for (let i = 0; i < 60 * 40; i++) {
+      F.p.hp = F.p.maxHp;
+      F.o.hp = F.o.maxHp;
+      F.p.inv = 1;
+      F.p.x = Math.min(F.p.x, 10);
+      stepFight(F, none, STEP);
+      if (['punch', 'kick', 'spin', 'fireball', 'uppercut'].includes(F.o.state) && F.o.state !== last) {
+        seq.push(F.o.state);
+        times.push(F.t);
+      }
+      last = F.o.state;
+      if (F.phase !== 'fight') break;
+    }
+    assert.ok(seq.length >= 4, `opponent ${idx} attacked ${seq.length} times`);
+    let run = 1;
+    let maxRun = 1;
+    for (let i = 1; i < seq.length; i++) {
+      run = seq[i] === seq[i - 1] && times[i] - times[i - 1] < 1.5 ? run + 1 : 1; // the same move again, quickly
+      maxRun = Math.max(maxRun, run);
+    }
+    assert.ok(maxRun <= 2, `opponent ${idx} chained ${maxRun} of the same move: ${seq.join(',')}`);
+    if (idx > 0) assert.ok(new Set(seq).size >= 2, `opponent ${idx} only used ${[...new Set(seq)]}`);
+  }
+});
+
+test('there is a real pause between opponent attacks', () => {
+  const F = fighting(2);
+  let t0 = null;
+  const gaps = [];
+  let last = '';
+  for (let i = 0; i < 60 * 40 && F.phase === 'fight'; i++) {
+    F.p.hp = F.p.maxHp;
+    F.p.inv = 1;
+    stepFight(F, none, STEP);
+    const atk = ['punch', 'kick', 'spin', 'uppercut'].includes(F.o.state);
+    if (atk && !['punch', 'kick', 'spin', 'uppercut'].includes(last)) {
+      if (t0 !== null) gaps.push(F.t - t0);
+      t0 = F.t;
+    }
+    last = F.o.state;
+  }
+  assert.ok(gaps.length >= 3);
+  const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length;
+  assert.ok(avg > 1.0, `average gap between attacks ${avg.toFixed(2)}s`);
+});
