@@ -2,6 +2,7 @@ import { buildLevel, buildSecret, LEVEL_COUNT, EMPTY, CRATE, USED, BREAKABLE, DO
 import { SCENES } from './story.js';
 import { createDrive, stepDrive } from './drive.js';
 import { createFight, stepFight, OPPONENTS } from './fight.js';
+import { createRace, stepRace } from './race.js';
 
 export { LEVEL_COUNT };
 export const STEP = 1 / 60;
@@ -114,7 +115,7 @@ const ENEMY_KINDS = {
 };
 
 // Starting at a later level (the secret codes) hands Billy what he would have found on the way
-export const EGG_CODE_LEVEL = 10; // the secret Egg Chamber has its own level-select number
+export const EGG_CODE_LEVEL = 11; // the secret Egg Chamber has its own level-select number
 
 export function createGameAt(code) {
   const n = code === EGG_CODE_LEVEL ? 8 : code;
@@ -124,6 +125,7 @@ export function createGameAt(code) {
   if (n >= 3) g.ammo = 15;
   if (n >= 8) g.lives = 5;
   if (n >= 9) g.gear.bazooka = true;
+  if (n >= 10) g.lives = 5;
   if (n > 1) {
     respawn(g);
     g.mode = 'intro';
@@ -168,6 +170,7 @@ export function createGame({ enemies = true, level = 1 } = {}) {
     drive: null,
     fight: null,
     fightIdx: 0,
+    race: null,
     driveCheckpoint: null,
     checkpointFloor: 9,
     checkpointHit: false,
@@ -329,6 +332,22 @@ export function respawn(g) {
     g.enemies = [];
     g.prevRush = false;
     g.drive = createDrive(g.level, { traffic: g.enemiesEnabled, cops: g.enemiesEnabled, respawn: g.driveCheckpoint });
+    return;
+  }
+  if (g.level.kind === 'race') {
+    g.player = newPlayer(2, 9);
+    g.player.armor = armorMax(g);
+    g.mode = 'playing';
+    g.deathT = 0;
+    g.items = [];
+    g.cobs = [];
+    g.rays = [];
+    g.belches = [];
+    g.shots = [];
+    g.missiles = [];
+    g.effects = [];
+    g.enemies = [];
+    g.race = createRace({ seed: 4242 });
     return;
   }
   if (g.level.kind === 'fight') {
@@ -549,6 +568,7 @@ export function step(g, input, dt = STEP) {
   if (g.mode === 'scene' && g.scene) g.scene.t += dt;
   if (g.level.kind === 'drive') return stepDriveMode(g, input, dt);
   if (g.level.kind === 'fight') return stepFightMode(g, input, dt);
+  if (g.level.kind === 'race') return stepRaceMode(g, input, dt);
   if (g.mode === 'dying') return stepDying(g, dt);
   if (g.mode !== 'playing') return;
 
@@ -588,6 +608,31 @@ export function step(g, input, dt = STEP) {
   if (g.level.scrollY) {
     const ty = clamp(p.y + p.h / 2 - VIEW_H * 0.55, 0, g.level.h - VIEW_H);
     g.camY += (ty - g.camY) * Math.min(1, dt * 6);
+  }
+}
+
+// Level 10 is a penguin race (see race.js)
+function stepRaceMode(g, input, dt) {
+  if (g.mode === 'dying') {
+    g.deathT += dt;
+    if (g.deathT > 1.2) {
+      g.lives--;
+      if (g.lives <= 0) {
+        g.mode = 'gameover';
+        emit(g, 'gameover');
+      } else respawn(g); // run the race again
+    }
+    return;
+  }
+  if (g.mode !== 'playing') return;
+  const R = g.race;
+  const done = stepRace(R, input, dt);
+  for (const ev of R.events.splice(0)) emit(g, ev);
+  g.shake = Math.max(g.shake, R.shake);
+  if (done === 'lost') die(g);
+  else if (done === 'won') {
+    g.score += [0, 5000, 3000][R.place] + R.p.jugs * 100;
+    win(g);
   }
 }
 

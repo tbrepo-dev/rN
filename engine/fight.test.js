@@ -249,7 +249,7 @@ test('level 9 is the cage match, with its own code, reached from the Queen scene
   assert.equal(g.mode, 'playing');
 });
 
-test('winning a fight moves on to the next opponent; the last win plays the champion scene and the ending', () => {
+test('winning a fight moves on to the next opponent; the last win plays the champion scene and leads to the penguin race', () => {
   const g = startFight();
   const win = (g2) => {
     const F = g2.fight;
@@ -267,8 +267,10 @@ test('winning a fight moves on to the next opponent; the last win plays the cham
   assert.equal(g.mode, 'scene');
   assert.equal(g.scene.id, 'champion');
   for (let i = 0; i < SCENES.champion.lines.length; i++) advanceScene(g);
-  assert.equal(g.mode, 'ending');
-  assert.equal(g.ending, 'tbc');
+  assert.equal(g.mode, 'scene');
+  assert.equal(g.scene.id, 'penguinRace');
+  for (let i = 0; i < SCENES.penguinRace.lines.length; i++) advanceScene(g);
+  assert.equal(g.levelNo, 10);
 });
 
 test('losing a match costs a life and gives you a rematch with the same opponent; no lives is game over', () => {

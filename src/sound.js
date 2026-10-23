@@ -36,6 +36,8 @@ const MUSIC = {
   egg: { prog: ['Am', 'F', 'Am', 'E', 'Am', 'F', 'E', 'E'], roll: [0, 2, 3, 2, 0, 1, 3, 1], bpm: 78, type: 'sine', oct: 1, vol: 2 },
   // The cage match: a fast, stompy minor groove
   fight: { prog: ['Em', 'Em', 'Am', 'Em', 'C', 'D', 'Em', 'E'], roll: [0, 3, 0, 2, 0, 3, 1, 2], bpm: 156, type: 'sawtooth', oct: 0.75, vol: 1.1 },
+  // The Penguin Grand Prix: bouncy and fast
+  race: { prog: ['C', 'C', 'F', 'C', 'G', 'F', 'C', 'G'], roll: [0, 2, 3, 2, 1, 3, 2, 3], bpm: 168, type: 'square', oct: 1, vol: 0.6 },
   japan: { prog: ['Am', 'Am', 'F', 'Am', 'Dm', 'Am', 'E', 'Am'], roll: [0, 2, 3, 1, 3, 2, 1, 2], bpm: 112, type: 'triangle', oct: 2, vol: 1.6 },
 };
 let tune = MUSIC.holler;
@@ -241,6 +243,17 @@ const SFX = {
     slide(60, 25, t + 0.2, 1.2, 0.3, 'square');
     [196, 185, 175, 165].forEach((f, i) => pluck(f, t + 0.3 + i * 0.3, 0.8, 0.14, 'sawtooth'));
   },
+  hop: (t) => slide(400, 800, t, 0.1, 0.1, 'triangle'),
+  bump: (t) => {
+    slide(180, 60, t, 0.2, 0.25, 'sawtooth');
+    slide(700, 200, t, 0.08, 0.1, 'square');
+  },
+  ramp: (t) => slide(300, 1200, t, 0.3, 0.14, 'triangle'),
+  smash: (t) => {
+    slide(240, 50, t, 0.22, 0.28, 'sawtooth');
+    pluck(1318, t + 0.05, 0.12, 0.08, 'triangle');
+  },
+  rivaldrink: (t) => slide(200, 120, t, 0.1, 0.05, 'triangle'),
   gameover: (t) => [330, 262, 196].forEach((f, i) => pluck(f, t + i * 0.25, 0.4, 0.14, 'triangle')),
 };
 

@@ -40,6 +40,7 @@ On the title screen, the game-over screen or the pause menu, tap **🔑 ENTER CO
 | 4200 | 7. Big Al's Liquor Store |
 | 1337 | 8. The Hive |
 | 1999 | 9. Hillbilly Cage Match |
+| 7777 | 10. Penguin Grand Prix |
 | 2718 | The secret Egg Chamber (inside the Hive; no bazooka until you crack the Queen Egg) |
 
 On the web you can also type the code on a keyboard.
@@ -79,7 +80,13 @@ Extra lives (1UP) come from: a hidden 1UP pickup in every level (look above the 
 9. **Hillbilly Cage Match** (a Street Fighter-style fighting game): Jinxy has Billy in a cage. Three one-on-one fights, best of three rounds, against **Cousin Cletus** (slow brawler), **Granny Mae** (blocks and throws fireballs) and finally **Jinxy** (fast, with every special). Your armor gear gives you extra health.
    - **Buttons:** ◀ ▶ on the left (so your thumbs never swap), and on the right JUMP plus a 2x2 pad (PUNCH, KICK over BLOCK, SPECIAL); you can hold several buttons at once, steer in mid-air and walk while swinging. 👊 PUNCH, 🦵 KICK (slower, harder, longer reach), 🛡️ BLOCK (hold; blocked hits do almost nothing), JUMP, and 🔥 SPECIAL: alone it throws a **fireball**, with ▶ it's a **spinning kick** (three hits), with ◀ it's an **uppercut** (invulnerable as it starts, great against jump-ins). Specials have short cooldowns, shown under your health bar. Keyboard: X punch, C kick, V block, Q special.
    - **Fatalities:** win the deciding round by KO and you get **FINISH HIM!** with about seven seconds to press two buttons in a row: PUNCH, KICK = **Corn Cob Smash**; KICK, PUNCH = **Outhouse Express**; SPECIAL, SPECIAL = **Moonshine Meltdown**; PUNCH, PUNCH = **Moon Shot**. (Cartoon style, no blood.) A fatality scores a 1000-point bonus, but skipping it is fine.
-   - Lose a match and you lose a life and rematch the same fighter. Beat Jinxy and it's *to be continued* once again.
+   - Lose a match and you lose a life and rematch the same fighter. Beat Jinxy and a giant shadow lands in the arena...
+
+10. **Penguin Grand Prix** (a racing level): Billy rides a penguin belly-first down a 900-tile icy course against three rival penguin riders (Waddles, Chilly Willy, Emperor Pete). Three lanes, a 3-2-1-GO countdown, and you need to finish in the **top two** (otherwise you lose a life and start over).
+   - **Controls:** ▲ ▼ change lanes, JUMP hops low hazards (ice spikes and cracks), 🌽 THROW stuns a penguin in your lane (rivals throw snowballs back). Keyboard: arrows or W/S for lanes, space jump, X throw.
+   - **Hazards:** spikes and cracks (jump them), snowmen and seals (too tall: change lanes; there is always an open lane), ice ramps that launch you with a boost.
+   - **Moonshine:** 🏺 jugs lie all along the course. Grab one and you're **drunk**: x1.5 speed with faster acceleration, and you **smash straight through** obstacles. More jugs stack the time (up to 12 seconds). It wobbles and hiccups, but it's the fastest way to win. Rivals grab moonshine too.
+   - Rivals speed up when you pull ahead and ease off when you fall behind, so the race stays close.
 
 Gear you miss is waiting in a loot chest at the end of each level. Gear, ammo, lives and score carry from level to level. In the tower and pagoda, Billy keeps his full knight-alien kit.
 

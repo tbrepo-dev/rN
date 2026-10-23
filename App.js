@@ -7,6 +7,7 @@ import { SceneView, EndingView } from './src/Scenes';
 import { HiveTerrain, HiveBackground, HiveCritter, HIVE_KINDS, SaveStation, EnergyTank, Portal, RocketItem, Missile, Boom, MiniMap } from './src/Hive';
 import { VIEW_H } from './engine/level';
 import { FightView } from './src/Fight';
+import { RaceView } from './src/Race';
 import { DriveView } from './src/Drive';
 import { levelForCode } from './engine/cheats';
 import { initAudio, play, toggleMute, isMuted, setMusicTheme, pauseAudio } from './src/sound';
@@ -21,6 +22,7 @@ const THEME = {
   hell: { sky: '#240606', icon: '👻', checkpoint: '⛓️', hills: ['#4a120e', '#33100c'] },
   town: { sky: '#78b05a', icon: '🏺', checkpoint: '🚩', hills: ['#78b05a', '#78b05a'] },
   hive: { sky: '#120a18', icon: '🧪', checkpoint: '📡', hills: ['#2b2033', '#2b2033'] },
+  race: { sky: '#17306a', icon: '🍺', checkpoint: '🚩', hills: ['#cfe4f4', '#cfe4f4'] },
   fight: { sky: '#1a1030', icon: '🥊', checkpoint: '🚩', hills: ['#1a1030', '#1a1030'] },
   egg: { sky: '#1e1208', icon: '🧪', checkpoint: '📡', hills: ['#4a3320', '#4a3320'] },
 };
@@ -53,6 +55,10 @@ const STORY = {
   9: {
     title: 'HILLBILLY CAGE MATCH',
     text: "Jinxy has put Billy in a cage match. Three fights, best of three rounds each: Cousin Cletus, Granny Mae, and finally Jinxy herself.\nPunch, kick, block, throw fireballs, and when the last round ends, FINISH HIM!",
+  },
+  10: {
+    title: 'PENGUIN GRAND PRIX',
+    text: "The Penguin King's racers are waiting. Hop on a penguin and race down the ice against Waddles, Chilly Willy and Emperor Pete.\nFinish in the top two to win. Grab the moonshine: get drunk and you go much faster and smash through anything!",
   },
   5: {
     title: 'THE PAGODA',
@@ -222,9 +228,10 @@ export default function App() {
   const [screen, setScreen] = useState('title'); // title | play
   const [, setFrame] = useState(0);
   const gameRef = useRef(null);
-  const inputRef = useRef({ left: false, right: false, jump: false, throw: false, rush: false, shield: false, baz: false });
+  const raceRef = useRef(false);
+  const inputRef = useRef({ left: false, right: false, jump: false, throw: false, rush: false, shield: false, baz: false, up: false, down: false });
   // A press shorter than one frame still counts: it is latched until the next game step.
-  const latchRef = useRef({ jump: false, throw: false, rush: false, baz: false });
+  const latchRef = useRef({ jump: false, throw: false, rush: false, baz: false, up: false, down: false });
   if (!gameRef.current) gameRef.current = createGame();
   const g = gameRef.current;
   const level = g.level;
@@ -259,8 +266,8 @@ export default function App() {
   const setPaused = (p) => {
     pausedRef.current = p;
     setPausedState(p);
-    inputRef.current = { left: false, right: false, jump: false, throw: false, rush: false, shield: false, baz: false };
-    latchRef.current = { jump: false, throw: false, rush: false, baz: false };
+    inputRef.current = { left: false, right: false, jump: false, throw: false, rush: false, shield: false, baz: false, up: false, down: false };
+    latchRef.current = { jump: false, throw: false, rush: false, baz: false, up: false, down: false };
     pauseAudio(p);
   };
 
@@ -325,8 +332,8 @@ export default function App() {
       while (acc >= STEP) {
         const cur = inputRef.current;
         const l = latchRef.current;
-        const input = { ...cur, jump: cur.jump || l.jump, throw: cur.throw || l.throw, rush: cur.rush || l.rush, baz: cur.baz || l.baz };
-        l.jump = l.throw = l.rush = l.baz = false;
+        const input = { ...cur, jump: cur.jump || l.jump, throw: cur.throw || l.throw, rush: cur.rush || l.rush, baz: cur.baz || l.baz, up: cur.up || l.up, down: cur.down || l.down };
+        l.jump = l.throw = l.rush = l.baz = l.up = l.down = false;
         step(gameRef.current, input, STEP);
         acc -= STEP;
       }
@@ -382,7 +389,7 @@ export default function App() {
     if (Platform.OS !== 'web') return;
     const map = { ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right', ArrowUp: 'jump', w: 'jump', ' ': 'jump', z: 'jump', x: 'throw', j: 'throw', c: 'rush', k: 'rush', e: 'rush', v: 'shield', b: 'shield', ArrowDown: 'throw', s: 'throw', q: 'baz', g: 'baz' };
     const on = (v) => (e) => {
-      const k = map[e.key];
+      const k = (raceRef.current && { ArrowUp: 'up', w: 'up', ArrowDown: 'down', s: 'down' }[e.key]) || map[e.key];
       if (k) {
         if (v && k in latchRef.current) latchRef.current[k] = true;
         inputRef.current[k] = v;
@@ -418,6 +425,13 @@ export default function App() {
   const rightC = { x: width * 0.04 + 84 + 36, y: height - 28 - 36, r: 36 };
   // The cage match has its own layout: ◀ ▶ on the left, and on the right JUMP beside a 2x2 pad of
   // PUNCH / KICK over BLOCK / SPECIAL, so one thumb walks while the other jumps and fights.
+  const racePad = level.kind === 'race';
+  const R10 = {
+    up: { x: width * 0.05 + 46, y: height - 26 - 46 - 104, r: 46 },
+    down: { x: width * 0.05 + 46, y: height - 26 - 46, r: 46 },
+    jump: { x: width - width * 0.04 - 52, y: height - 26 - 52, r: 52 },
+    throw: { x: width - width * 0.04 - 52 - 112, y: height - 26 - 44, r: 42 },
+  };
   const fightPad = level.kind === 'fight';
   const fR = 38;
   const fRow2 = height - 26 - fR;
@@ -434,7 +448,14 @@ export default function App() {
     block: { x: fCol2, y: fRow2, r: fR },
     special: { x: fCol3, y: fRow2, r: fR },
   };
-  const actions = fightPad
+  const actions = racePad
+    ? [
+        ['up', R10.up, 1.3],
+        ['down', R10.down, 1.3],
+        ['jump', R10.jump, 1.25],
+        ['throw', R10.throw, 1.25],
+      ]
+    : fightPad
     ? [
         ['left', F9.left, 1.3],
         ['right', F9.right, 1.3],
@@ -451,15 +472,15 @@ export default function App() {
     ['throw', throwC, 1.15],
     ['rush', shineC, 1.2],
   ];
-  if (fightPad) {
-    // (the fight layout above is complete)
+  if (fightPad || racePad) {
+    // (the fight and race layouts above are complete)
   } else if (g.gear.shield || level.kind === 'drive') actions.push(['shield', shieldC, 1.25]);
   if (!fightPad && g.gear.bazooka) actions.push(['baz', bazC, 1.25]);
 
   // Multi-touch: left cluster = ◀ ▶, right cluster = JUMP / FIRE / SHINE / SHIELD.
   // A touch goes to whichever button it is closest to (relative to its size).
   const onTouches = (e) => {
-    const next = { left: false, right: false, jump: false, throw: false, rush: false, shield: false, baz: false };
+    const next = { left: false, right: false, jump: false, throw: false, rush: false, shield: false, baz: false, up: false, down: false };
     for (const t of e.nativeEvent.touches) {
       let best = null;
       let bestScore = Infinity;
@@ -471,9 +492,9 @@ export default function App() {
         }
       }
       if (best) next[best] = true;
-      else if (!fightPad && t.pageX > width * 0.75 && t.pageY > height * 0.45) next.jump = true;
+      else if (!fightPad && !racePad && t.pageX > width * 0.75 && t.pageY > height * 0.45) next.jump = true;
     }
-    for (const k of ['jump', 'throw', 'rush', 'baz']) if (next[k]) latchRef.current[k] = true;
+    for (const k of ['jump', 'throw', 'rush', 'baz', 'up', 'down']) if (next[k]) latchRef.current[k] = true;
     inputRef.current = next;
   };
 
@@ -496,6 +517,8 @@ export default function App() {
   const useFlame = g.tequila > 0;
   const isDrive = level.kind === 'drive';
   const isFight = level.kind === 'fight';
+  const isRace = level.kind === 'race';
+  raceRef.current = isRace;
   const D = g.drive;
   const prompt = isDrive ? D.prompt : null;
   const gearIcons = Object.keys(g.gear).filter((k) => g.gear[k]);
@@ -514,10 +537,11 @@ export default function App() {
       <StatusBar hidden />
       {isDrive && <DriveView g={g} width={width} height={height} />}
       {isFight && <FightView g={g} width={width} height={height} />}
-      {!isDrive && !isFight && !scrollY && <Background camX={g.camX} ts={ts} theme={theme} time={g.time} groundY={GROUND_Y} level={level} />}
+      {isRace && <RaceView g={g} width={width} height={height} />}
+      {!isDrive && !isFight && !isRace && !scrollY && <Background camX={g.camX} ts={ts} theme={theme} time={g.time} groundY={GROUND_Y} level={level} />}
       {scrollY && <HiveBackground camX={g.camX} camY={g.camY} ts={ts} theme={theme} time={g.time} />}
 
-      {!isDrive && !isFight && <View style={{ position: 'absolute', left: 0, top: scrollY ? 0 : topPad, width: level.w * ts, height: scrollY ? level.h * ts : height - topPad, transform: [{ translateX: camPx + shakeX }, { translateY: scrollY ? -g.camY * ts + shakeY : 0 }] }} pointerEvents="none">
+      {!isDrive && !isFight && !isRace && <View style={{ position: 'absolute', left: 0, top: scrollY ? 0 : topPad, width: level.w * ts, height: scrollY ? level.h * ts : height - topPad, transform: [{ translateX: camPx + shakeX }, { translateY: scrollY ? -g.camY * ts + shakeY : 0 }] }} pointerEvents="none">
         {!scrollY && <Scenery level={level} ts={ts} />}
         {scrollY ? <HiveTerrain tiles={g.tiles} level={level} ts={ts} version={g.version} theme={theme} /> : <Terrain tiles={g.tiles} level={level} ts={ts} version={g.version} theme={theme} />}
         {scrollY && (level.saves || []).map((sv, i) => seen(sv.x, sv.floor - 1) && <SaveStation key={`sv${i}`} x={sv.x} floor={sv.floor} ts={ts} t={g.time} />)}
@@ -571,14 +595,14 @@ export default function App() {
 
       {topPad > 0 && <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: topPad, backgroundColor: 'rgba(0,0,0,0.4)' }} pointerEvents="none" />}
       {/* HUD */}
-      {!isFight && <View style={styles.hud} pointerEvents="none">
+      {!isFight && !isRace && <View style={styles.hud} pointerEvents="none">
         <Text style={styles.hudText}>{hud.lives > 4 ? `🤠 ×${hud.lives}` : '🤠'.repeat(Math.max(0, hud.lives))}</Text>
         <Text style={styles.hudText}>
           {level.collectible === 'none' ? '' : level.goalJugs > 0 ? `${th.icon} ${hud.jugs}/${level.goalJugs}` : `${th.icon} ${hud.jugs}`}
         </Text>
         <Text style={styles.hudText}>{String(hud.score).padStart(6, '0')}</Text>
       </View>}
-      {!isFight && (gearIcons.length > 0 || armor > 0 || g.tequila > 0) && (
+      {!isFight && !isRace && (gearIcons.length > 0 || armor > 0 || g.tequila > 0) && (
         <View style={styles.hud2} pointerEvents="none">
           {g.gear.bazooka && <Text style={styles.hudSmall}>🚀 {g.rocketAmmo}/{ROCKET_MAX}</Text>}
           {g.tanks > 0 && <Text style={styles.hudSmall}>🔋×{g.tanks}</Text>}
@@ -635,7 +659,22 @@ export default function App() {
           ))}
         </View>
       )}
-      {screen === 'play' && !isFight && (g.mode === 'playing' || g.mode === 'dying') && (
+      {screen === 'play' && isRace && (g.mode === 'playing' || g.mode === 'dying') && (
+        <View style={styles.controls} pointerEvents="none">
+          {[
+            ['up', R10.up, '▲', 'LANE UP', '#cfd6e6'],
+            ['down', R10.down, '▼', 'LANE DOWN', '#cfd6e6'],
+            ['throw', R10.throw, '🌽', 'THROW', '#ffd23a'],
+            ['jump', R10.jump, '⬆', 'JUMP', '#9be37a'],
+          ].map(([k, c, icon, label, col]) => (
+            <View key={k} style={[styles.btn, { left: c.x - c.r, top: c.y - c.r, bottom: undefined, width: c.r * 2, height: c.r * 2, borderRadius: c.r, backgroundColor: inp[k] ? col : 'rgba(10,8,24,0.72)', opacity: inp[k] ? 0.95 : 0.8, borderWidth: 3, borderColor: col }]}>
+              <Text style={{ fontSize: 26, color: inp[k] ? '#000' : '#fff' }}>{icon}</Text>
+              <Text style={[styles.btnText, { fontSize: 9, color: inp[k] ? '#000' : col }]}>{label}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+      {screen === 'play' && !isFight && !isRace && (g.mode === 'playing' || g.mode === 'dying') && (
         <View style={styles.controls} pointerEvents="none">
           <View style={[styles.btn, { left: leftC.x - leftC.r, opacity: inp.left ? 0.8 : 0.4 }]}><Text style={styles.btnText}>◀</Text></View>
           <View style={[styles.btn, { left: rightC.x - rightC.r, opacity: inp.right ? 0.8 : 0.4 }]}><Text style={styles.btnText}>▶</Text></View>
@@ -700,6 +739,7 @@ export default function App() {
           {g.levelNo === 2 && <Text style={styles.hint}>Aliens drop ⚡ ammo for the ray gun.{'\n'}Your 🌽 button fires the ray gun whenever you have ammo.</Text>}
           {g.levelNo === 3 && <Text style={styles.hint}>🗡️ Fire slashes enemies up close, then shoots.{'\n'}Hold 🛡️ to block from the front.</Text>}
           {g.levelNo === 4 && <Text style={styles.hint}>Hug the edge of a girder and jump up through the gap. Barrels roll toward you!{'\n'}Shoot or slash them, or hold 🛡️ to block.</Text>}
+          {g.levelNo === 10 && <Text style={styles.hint}>▲ ▼ change lanes, JUMP hops low spikes and cracks, 🌽 throws corn to stun a rival.{'\n'}Snowmen and seals are too tall to jump: change lanes!{'\n'}Grab 🏺 moonshine: drunk = x1.5 speed and you smash straight through everything.{'\n'}Finish in the top two. Keyboard: arrows / W S lanes, space jump, X throw.</Text>}
           {g.levelNo === 9 && <Text style={styles.hint}>👊 PUNCH, 🦵 KICK, 🛡️ BLOCK (hold), JUMP.  🔥 SPECIAL alone = fireball,{'\n'}SPECIAL + ▶ = spinning kick, SPECIAL + ◀ = uppercut.{'\n'}Win the last round by KO and you get to FINISH HIM with a two-button fatality!{'\n'}Keyboard: X punch, C kick, V block, Q special.</Text>}
           {g.levelNo === 8 && <Text style={styles.hint}>Blue doors open to any shot. Red doors need a 🚀 rocket. Cracked walls need real firepower.{'\n'}Save stations refill your armor, and energy tanks add armor for good.{'\n'}The Queen's armor only cares about rockets. Where might one come from?</Text>}
           {g.levelNo === 7 && <Text style={styles.hint}>◀ ▶ steer, GAS drives (or walks), 🛑 brakes, ⏪ REV backs up.{'\n'}ACTION gets in or out of a ride, or CARJACKS a farmer (he may know a lead, or nothing at all).{'\n'}Each landmark you reach gives the next clue. The map only shows your current lead.</Text>}

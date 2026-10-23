@@ -198,6 +198,36 @@ export const SCENES = {
       { who: 'jinxy', text: 'Oh, sure. But I am only the middle manager. Somebody bigger is watching.' },
       { who: 'narrator', text: 'High above the arena, a giant shadow turns its head...' },
     ],
+    then: { scene: 'penguinRace' },
+  },
+
+  // The shadow turns out to be a very large penguin
+  penguinRace: {
+    bg: 'ice',
+    cast: ['billy', 'jinxy'],
+    lines: [
+      { who: 'narrator', text: 'The giant shadow lands with a THUMP. It is a penguin. A very large, very smug penguin in a tiny crown.' },
+      { who: 'jinxy', text: 'Meet my boss. The Penguin King. He has one rule: nobody leaves until they beat his racers.' },
+      { who: 'billy', text: 'Race a penguin? On a penguin?' },
+      { who: 'jinxy', text: 'Hop on. Dodge the snowmen, jump the cracks, and for the love of cats, grab the moonshine.' },
+      { who: 'billy', text: 'Moonshine makes me faster.' },
+      { who: 'jinxy', text: 'Moonshine makes EVERYONE faster. Finish in the top two or you start over. Good luck!' },
+      { who: 'narrator', text: 'Controls: lane up and down, JUMP, and throw corn. Every jug of moonshine gives you a drunken speed boost and lets you smash right through anything in your way.' },
+    ],
+    then: { level: 10 },
+  },
+
+  // After the race
+  raceWin: {
+    bg: 'ice',
+    cast: ['billy', 'jinxy'],
+    lines: [
+      { who: 'narrator', text: 'Billy crosses the finish line in a spray of snow. The Penguin King slow-claps with his flippers.' },
+      { who: 'jinxy', text: 'Nobody has ever beaten the Grand Prix while that drunk.' },
+      { who: 'billy', text: 'Hic. Thank you. Can I go home now?' },
+      { who: 'jinxy', text: 'Home is a very long way from here, cowboy...' },
+      { who: 'narrator', text: 'Far away, something stirs...' },
+    ],
     then: { ending: 'tbc' },
   },
 };

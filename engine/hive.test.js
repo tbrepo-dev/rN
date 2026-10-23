@@ -64,7 +64,7 @@ function canHop(g, a, b) {
 
 test('the Hive is a big tall map with two secrets: a cracked wall and a portal', () => {
   const L = buildLevel(8);
-  assert.equal(LEVEL_COUNT, 9);
+  assert.equal(LEVEL_COUNT, 10);
   assert.ok(L.w >= 200 && L.h >= 60 && L.scrollY);
   assert.equal(L.tiles.flat().filter((t) => t === DOOR_RED).length, 4);
   assert.ok(L.tiles.flat().includes(BREAKABLE));
@@ -442,8 +442,8 @@ test('smoke: every creature in the Hive and Egg Chamber can be woken up and foug
 });
 
 test('code 2718 starts in the Egg Chamber', () => {
-  assert.equal(levelForCode('2718'), 10);
-  const g = createGameAt(10);
+  assert.equal(levelForCode('2718'), 11);
+  const g = createGameAt(11);
   assert.equal(g.level.secret, true);
   startPlaying(g);
   run(g, none, 1);

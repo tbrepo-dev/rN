@@ -122,6 +122,24 @@ function Backdrop({ bg, w, h, t }) {
           <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, height: 8, backgroundColor: '#7a5a8a' }} />
         </View>
       );
+    case 'ice':
+      return (
+        <View style={StyleSheet.absoluteFill}>
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: '#17306a' }]} />
+          <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: h * 0.3, backgroundColor: '#0f2050' }} />
+          {[0.1, 0.4, 0.7].map((f, i) => (
+            <View key={f} style={{ position: 'absolute', left: w * f, top: h * 0.12, width: w * 0.3, height: 34, borderRadius: 30, backgroundColor: i % 2 ? 'rgba(120,255,200,0.2)' : 'rgba(180,120,255,0.2)' }} />
+          ))}
+          <View style={{ position: 'absolute', left: -w * 0.1, top: floorY - h * 0.25, width: 0, height: 0, borderLeftWidth: w * 0.3, borderRightWidth: w * 0.3, borderBottomWidth: h * 0.3, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#5d7fa8' }} />
+          <View style={{ position: 'absolute', left: w * 0.5, top: floorY - h * 0.32, width: 0, height: 0, borderLeftWidth: w * 0.35, borderRightWidth: w * 0.35, borderBottomWidth: h * 0.38, borderLeftColor: 'transparent', borderRightColor: 'transparent', borderBottomColor: '#6b8cb4' }} />
+          <Text style={{ position: 'absolute', left: w * 0.62, top: floorY - h * 0.2, fontSize: 70 }}>🐧</Text>
+          <Text style={{ position: 'absolute', left: w * 0.7, top: floorY - h * 0.3, fontSize: 28 }}>👑</Text>
+          {Array.from({ length: 16 }, (_, i) => (
+            <Text key={i} style={{ position: 'absolute', left: `${(i * 61) % 100}%`, top: `${(i * 37 + t * 8) % 70}%`, fontSize: 12, opacity: 0.7 }}>❄️</Text>
+          ))}
+          <View style={{ position: 'absolute', left: 0, right: 0, top: floorY, bottom: 0, backgroundColor: '#cfeaff' }} />
+        </View>
+      );
     case 'arena':
       return (
         <View style={StyleSheet.absoluteFill}>

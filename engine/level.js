@@ -855,8 +855,33 @@ function buildFight() {
   };
 }
 
-export const LEVEL_COUNT = 9;
-const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell, buildTown, buildHive, buildFight];
+// Level 10: the penguin race (see race.js)
+function buildRace() {
+  return {
+    kind: 'race',
+    id: 10,
+    name: 'Penguin Grand Prix',
+    theme: 'race',
+    w: 16,
+    h: 8,
+    groundY: 7,
+    tiles: [[0]],
+    crates: {},
+    coins: [],
+    spawns: [],
+    lives: [],
+    startX: 2,
+    totalJugs: 0,
+    goalJugs: 0,
+    gearPool: [],
+    collectible: 'none',
+    goalKind: 'race',
+    winScene: 'raceWin',
+  };
+}
+
+export const LEVEL_COUNT = 10;
+const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell, buildTown, buildHive, buildFight, buildRace];
 
 export function buildLevel(n = 1) {
   return BUILDERS[n - 1]();
