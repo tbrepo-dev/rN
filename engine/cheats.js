@@ -8,9 +8,10 @@ export const LEVEL_CODES = {
   6660: 6, // Hell
   4200: 7, // Big Al's Liquor Store
   1337: 8, // The Hive
-  2718: 11, // The Egg Chamber (the secret level inside the Hive)
+  2718: 12, // The Egg Chamber (the secret level inside the Hive)
   1999: 9, // The Hillbilly Cage Match
   7777: 10, // The Penguin Grand Prix
+  5555: 11, // Hillbilly Kart
 };
 
 export const levelForCode = (code) => LEVEL_CODES[String(code)] ?? null;

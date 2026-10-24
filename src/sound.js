@@ -38,6 +38,8 @@ const MUSIC = {
   fight: { prog: ['Em', 'Em', 'Am', 'Em', 'C', 'D', 'Em', 'E'], roll: [0, 3, 0, 2, 0, 3, 1, 2], bpm: 156, type: 'sawtooth', oct: 0.75, vol: 1.1 },
   // The Penguin Grand Prix: bouncy and fast
   race: { prog: ['C', 'C', 'F', 'C', 'G', 'F', 'C', 'G'], roll: [0, 2, 3, 2, 1, 3, 2, 3], bpm: 168, type: 'square', oct: 1, vol: 0.6 },
+  // Hillbilly Kart: bluegrass at full throttle
+  kart: { prog: ['G', 'G', 'C', 'D', 'G', 'Em', 'C', 'D'], roll: [0, 3, 2, 3, 1, 3, 2, 3], bpm: 184, type: 'sawtooth', oct: 1, vol: 0.8 },
   japan: { prog: ['Am', 'Am', 'F', 'Am', 'Dm', 'Am', 'E', 'Am'], roll: [0, 2, 3, 1, 3, 2, 1, 2], bpm: 112, type: 'triangle', oct: 2, vol: 1.6 },
 };
 let tune = MUSIC.holler;

@@ -228,6 +228,35 @@ export const SCENES = {
       { who: 'jinxy', text: 'Home is a very long way from here, cowboy...' },
       { who: 'narrator', text: 'Far away, something stirs...' },
     ],
+    then: { scene: 'kartIntro' },
+  },
+
+  // Next stop: the kart track
+  kartIntro: {
+    bg: 'arena',
+    cast: ['billy', 'jinxy'],
+    lines: [
+      { who: 'narrator', text: 'The Penguin King honks. A trapdoor opens. Out rolls a row of rusty, souped-up lawn mower karts.' },
+      { who: 'jinxy', text: 'Last event, cowboy. The Hillbilly Kart Cup. Three laps. Six karts. Top three go home.' },
+      { who: 'billy', text: 'Everybody is in on this? Cletus? Granny Mae? Big Al? Max?' },
+      { who: 'jinxy', text: 'And me. Grab the barrels on the road for goodies: moonshine boosts, corn missiles, cow pies, hay bale shields.' },
+      { who: 'billy', text: 'Drift for a mini-turbo. Got it. Hold on to your hat.' },
+      { who: 'narrator', text: 'Steer with the arrows. BRAKE slows you, DRIFT while turning builds a turbo, and ITEM uses what you picked up.' },
+    ],
+    then: { level: 11 },
+  },
+
+  // After the cup
+  kartWin: {
+    bg: 'arena',
+    cast: ['billy', 'jinxy'],
+    lines: [
+      { who: 'narrator', text: 'Billy skids across the line, hat flying, trophy-sized jug of moonshine in hand.' },
+      { who: 'jinxy', text: 'Top three. I suppose you have earned your way home.' },
+      { who: 'billy', text: 'Finally!' },
+      { who: 'jinxy', text: 'But the road home goes through a few more surprises, cowboy...' },
+      { who: 'narrator', text: 'To be continued...' },
+    ],
     then: { ending: 'tbc' },
   },
 };

@@ -8,6 +8,7 @@ import { HiveTerrain, HiveBackground, HiveCritter, HIVE_KINDS, SaveStation, Ener
 import { VIEW_H } from './engine/level';
 import { FightView } from './src/Fight';
 import { RaceView } from './src/Race';
+import { KartView } from './src/Kart';
 import { DriveView } from './src/Drive';
 import { levelForCode } from './engine/cheats';
 import { initAudio, play, toggleMute, isMuted, setMusicTheme, pauseAudio } from './src/sound';
@@ -22,6 +23,7 @@ const THEME = {
   hell: { sky: '#240606', icon: '👻', checkpoint: '⛓️', hills: ['#4a120e', '#33100c'] },
   town: { sky: '#78b05a', icon: '🏺', checkpoint: '🚩', hills: ['#78b05a', '#78b05a'] },
   hive: { sky: '#120a18', icon: '🧪', checkpoint: '📡', hills: ['#2b2033', '#2b2033'] },
+  kart: { sky: '#3a7bd5', icon: '🏁', checkpoint: '🚩', hills: ['#5aa83a', '#5aa83a'] },
   race: { sky: '#17306a', icon: '🍺', checkpoint: '🚩', hills: ['#cfe4f4', '#cfe4f4'] },
   fight: { sky: '#1a1030', icon: '🥊', checkpoint: '🚩', hills: ['#1a1030', '#1a1030'] },
   egg: { sky: '#1e1208', icon: '🧪', checkpoint: '📡', hills: ['#4a3320', '#4a3320'] },
@@ -59,6 +61,10 @@ const STORY = {
   10: {
     title: 'PENGUIN GRAND PRIX',
     text: "The Penguin King's racers are waiting. Hop on a penguin and race down the ice against Waddles, Chilly Willy and Emperor Pete.\nFinish in the top two to win. Grab the moonshine: get drunk and you go much faster and smash through anything!",
+  },
+  11: {
+    title: 'HILLBILLY KART CUP',
+    text: "Six lawn mower karts, three laps. Cletus, Granny Mae, Big Al, Max and Jinxy are all on the grid.\nFinish in the top three. Smash the barrels for items and drift for turbos!",
   },
   5: {
     title: 'THE PAGODA',
@@ -425,6 +431,14 @@ export default function App() {
   const rightC = { x: width * 0.04 + 84 + 36, y: height - 28 - 36, r: 36 };
   // The cage match has its own layout: ◀ ▶ on the left, and on the right JUMP beside a 2x2 pad of
   // PUNCH / KICK over BLOCK / SPECIAL, so one thumb walks while the other jumps and fights.
+  const kartPad = level.kind === 'kart';
+  const K11 = {
+    left: { x: width * 0.05 + 46, y: height - 26 - 46, r: 46 },
+    right: { x: width * 0.05 + 46 + 106, y: height - 26 - 46, r: 46 },
+    jump: { x: width - width * 0.04 - 52, y: height - 26 - 52, r: 52 },
+    throw: { x: width - width * 0.04 - 52 - 112, y: height - 26 - 40, r: 42 },
+    shield: { x: width - width * 0.04 - 52 - 6, y: height - 26 - 52 - 104, r: 38 },
+  };
   const racePad = level.kind === 'race';
   const R10 = {
     up: { x: width * 0.05 + 46, y: height - 26 - 46 - 104, r: 46 },
@@ -448,7 +462,15 @@ export default function App() {
     block: { x: fCol2, y: fRow2, r: fR },
     special: { x: fCol3, y: fRow2, r: fR },
   };
-  const actions = racePad
+  const actions = kartPad
+    ? [
+        ['left', K11.left, 1.3],
+        ['right', K11.right, 1.3],
+        ['jump', K11.jump, 1.25],
+        ['throw', K11.throw, 1.25],
+        ['shield', K11.shield, 1.25],
+      ]
+    : racePad
     ? [
         ['up', R10.up, 1.3],
         ['down', R10.down, 1.3],
@@ -472,7 +494,7 @@ export default function App() {
     ['throw', throwC, 1.15],
     ['rush', shineC, 1.2],
   ];
-  if (fightPad || racePad) {
+  if (fightPad || racePad || kartPad) {
     // (the fight and race layouts above are complete)
   } else if (g.gear.shield || level.kind === 'drive') actions.push(['shield', shieldC, 1.25]);
   if (!fightPad && g.gear.bazooka) actions.push(['baz', bazC, 1.25]);
@@ -492,7 +514,7 @@ export default function App() {
         }
       }
       if (best) next[best] = true;
-      else if (!fightPad && !racePad && t.pageX > width * 0.75 && t.pageY > height * 0.45) next.jump = true;
+      else if (!fightPad && !racePad && !kartPad && t.pageX > width * 0.75 && t.pageY > height * 0.45) next.jump = true;
     }
     for (const k of ['jump', 'throw', 'rush', 'baz', 'up', 'down']) if (next[k]) latchRef.current[k] = true;
     inputRef.current = next;
@@ -518,6 +540,7 @@ export default function App() {
   const isDrive = level.kind === 'drive';
   const isFight = level.kind === 'fight';
   const isRace = level.kind === 'race';
+  const isKart = level.kind === 'kart';
   raceRef.current = isRace;
   const D = g.drive;
   const prompt = isDrive ? D.prompt : null;
@@ -538,10 +561,11 @@ export default function App() {
       {isDrive && <DriveView g={g} width={width} height={height} />}
       {isFight && <FightView g={g} width={width} height={height} />}
       {isRace && <RaceView g={g} width={width} height={height} />}
-      {!isDrive && !isFight && !isRace && !scrollY && <Background camX={g.camX} ts={ts} theme={theme} time={g.time} groundY={GROUND_Y} level={level} />}
+      {isKart && <KartView g={g} width={width} height={height} />}
+      {!isDrive && !isFight && !isRace && !isKart && !scrollY && <Background camX={g.camX} ts={ts} theme={theme} time={g.time} groundY={GROUND_Y} level={level} />}
       {scrollY && <HiveBackground camX={g.camX} camY={g.camY} ts={ts} theme={theme} time={g.time} />}
 
-      {!isDrive && !isFight && !isRace && <View style={{ position: 'absolute', left: 0, top: scrollY ? 0 : topPad, width: level.w * ts, height: scrollY ? level.h * ts : height - topPad, transform: [{ translateX: camPx + shakeX }, { translateY: scrollY ? -g.camY * ts + shakeY : 0 }] }} pointerEvents="none">
+      {!isDrive && !isFight && !isRace && !isKart && <View style={{ position: 'absolute', left: 0, top: scrollY ? 0 : topPad, width: level.w * ts, height: scrollY ? level.h * ts : height - topPad, transform: [{ translateX: camPx + shakeX }, { translateY: scrollY ? -g.camY * ts + shakeY : 0 }] }} pointerEvents="none">
         {!scrollY && <Scenery level={level} ts={ts} />}
         {scrollY ? <HiveTerrain tiles={g.tiles} level={level} ts={ts} version={g.version} theme={theme} /> : <Terrain tiles={g.tiles} level={level} ts={ts} version={g.version} theme={theme} />}
         {scrollY && (level.saves || []).map((sv, i) => seen(sv.x, sv.floor - 1) && <SaveStation key={`sv${i}`} x={sv.x} floor={sv.floor} ts={ts} t={g.time} />)}
@@ -595,14 +619,14 @@ export default function App() {
 
       {topPad > 0 && <View style={{ position: 'absolute', left: 0, right: 0, top: 0, height: topPad, backgroundColor: 'rgba(0,0,0,0.4)' }} pointerEvents="none" />}
       {/* HUD */}
-      {!isFight && !isRace && <View style={styles.hud} pointerEvents="none">
+      {!isFight && !isRace && !isKart && <View style={styles.hud} pointerEvents="none">
         <Text style={styles.hudText}>{hud.lives > 4 ? `🤠 ×${hud.lives}` : '🤠'.repeat(Math.max(0, hud.lives))}</Text>
         <Text style={styles.hudText}>
           {level.collectible === 'none' ? '' : level.goalJugs > 0 ? `${th.icon} ${hud.jugs}/${level.goalJugs}` : `${th.icon} ${hud.jugs}`}
         </Text>
         <Text style={styles.hudText}>{String(hud.score).padStart(6, '0')}</Text>
       </View>}
-      {!isFight && !isRace && (gearIcons.length > 0 || armor > 0 || g.tequila > 0) && (
+      {!isFight && !isRace && !isKart && (gearIcons.length > 0 || armor > 0 || g.tequila > 0) && (
         <View style={styles.hud2} pointerEvents="none">
           {g.gear.bazooka && <Text style={styles.hudSmall}>🚀 {g.rocketAmmo}/{ROCKET_MAX}</Text>}
           {g.tanks > 0 && <Text style={styles.hudSmall}>🔋×{g.tanks}</Text>}
@@ -674,7 +698,23 @@ export default function App() {
           ))}
         </View>
       )}
-      {screen === 'play' && !isFight && !isRace && (g.mode === 'playing' || g.mode === 'dying') && (
+      {screen === 'play' && isKart && (g.mode === 'playing' || g.mode === 'dying') && (
+        <View style={styles.controls} pointerEvents="none">
+          {[
+            ['left', K11.left, '◀', 'STEER', '#cfd6e6'],
+            ['right', K11.right, '▶', '', '#cfd6e6'],
+            ['throw', K11.throw, g.kart.p.item ? { shine: '🏺', corn: '🌽', pie: '💩', hay: '🌾' }[g.kart.p.item] : '🛢️', 'ITEM', '#ffd23a'],
+            ['shield', K11.shield, '🛑', 'BRAKE', '#ff6a5a'],
+            ['jump', K11.jump, '🌀', 'DRIFT', '#9be37a'],
+          ].map(([k, c, icon, label, col]) => (
+            <View key={k} style={[styles.btn, { left: c.x - c.r, top: c.y - c.r, bottom: undefined, width: c.r * 2, height: c.r * 2, borderRadius: c.r, backgroundColor: inp[k] ? col : 'rgba(10,8,24,0.72)', opacity: inp[k] ? 0.95 : 0.8, borderWidth: 3, borderColor: col }]}>
+              <Text style={{ fontSize: 26, color: inp[k] ? '#000' : '#fff' }}>{icon}</Text>
+              {label !== '' && <Text style={[styles.btnText, { fontSize: 9, color: inp[k] ? '#000' : col }]}>{label}</Text>}
+            </View>
+          ))}
+        </View>
+      )}
+      {screen === 'play' && !isFight && !isRace && !isKart && (g.mode === 'playing' || g.mode === 'dying') && (
         <View style={styles.controls} pointerEvents="none">
           <View style={[styles.btn, { left: leftC.x - leftC.r, opacity: inp.left ? 0.8 : 0.4 }]}><Text style={styles.btnText}>◀</Text></View>
           <View style={[styles.btn, { left: rightC.x - rightC.r, opacity: inp.right ? 0.8 : 0.4 }]}><Text style={styles.btnText}>▶</Text></View>
@@ -739,6 +779,7 @@ export default function App() {
           {g.levelNo === 2 && <Text style={styles.hint}>Aliens drop ⚡ ammo for the ray gun.{'\n'}Your 🌽 button fires the ray gun whenever you have ammo.</Text>}
           {g.levelNo === 3 && <Text style={styles.hint}>🗡️ Fire slashes enemies up close, then shoots.{'\n'}Hold 🛡️ to block from the front.</Text>}
           {g.levelNo === 4 && <Text style={styles.hint}>Hug the edge of a girder and jump up through the gap. Barrels roll toward you!{'\n'}Shoot or slash them, or hold 🛡️ to block.</Text>}
+          {g.levelNo === 11 && <Text style={styles.hint}>◀ ▶ steer (you speed up on your own), BRAKE slows, hold DRIFT while turning to build a turbo, ITEM uses what you hold.{'\n'}Barrels give moonshine (drunk = fast and unstoppable!), corn missiles, cow pies and hay shields.{'\n'}Hay bales and cow pies spin you out. Finish in the top three of six.{'\n'}Keyboard: arrows steer, space drift, X item, V brake.</Text>}
           {g.levelNo === 10 && <Text style={styles.hint}>▲ ▼ change lanes, JUMP hops low spikes and cracks, 🌽 throws corn to stun a rival.{'\n'}Snowmen and seals are too tall to jump: change lanes!{'\n'}Grab 🏺 moonshine: drunk = x1.5 speed and you smash straight through everything.{'\n'}Finish in the top two. Keyboard: arrows / W S lanes, space jump, X throw.</Text>}
           {g.levelNo === 9 && <Text style={styles.hint}>👊 PUNCH, 🦵 KICK, 🛡️ BLOCK (hold), JUMP.  🔥 SPECIAL alone = fireball,{'\n'}SPECIAL + ▶ = spinning kick, SPECIAL + ◀ = uppercut.{'\n'}Win the last round by KO and you get to FINISH HIM with a two-button fatality!{'\n'}Keyboard: X punch, C kick, V block, Q special.</Text>}
           {g.levelNo === 8 && <Text style={styles.hint}>Blue doors open to any shot. Red doors need a 🚀 rocket. Cracked walls need real firepower.{'\n'}Save stations refill your armor, and energy tanks add armor for good.{'\n'}The Queen's armor only cares about rockets. Where might one come from?</Text>}

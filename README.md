@@ -41,6 +41,7 @@ On the title screen, the game-over screen or the pause menu, tap **🔑 ENTER CO
 | 1337 | 8. The Hive |
 | 1999 | 9. Hillbilly Cage Match |
 | 7777 | 10. Penguin Grand Prix |
+| 5555 | 11. Hillbilly Kart |
 | 2718 | The secret Egg Chamber (inside the Hive; no bazooka until you crack the Queen Egg) |
 
 On the web you can also type the code on a keyboard.
@@ -87,6 +88,12 @@ Extra lives (1UP) come from: a hidden 1UP pickup in every level (look above the 
    - **Hazards:** spikes and cracks (jump them), snowmen and seals (too tall: change lanes; there is always an open lane), ice ramps that launch you with a boost.
    - **Moonshine:** 🏺 jugs lie all along the course. Grab one and you're **drunk**: x1.5 speed with faster acceleration, and you **smash straight through** obstacles. More jugs stack the time (up to 12 seconds). It wobbles and hiccups, but it's the fastest way to win. Rivals grab moonshine too.
    - Rivals speed up when you pull ahead and ease off when you fall behind, so the race stays close.
+   - After the race the Penguin King rolls out the next event...
+
+11. **Hillbilly Kart** (a Mario Kart-style racer, drawn in pseudo-3D): six lawn-mower karts, three laps, and you start in last. Rivals: Cousin Cletus, Granny Mae, Big Al, Max and Jinxy (faster the better they are, with a little rubber-banding). Finish in the **top three**, or lose a life and restart.
+   - **Controls:** ◀ ▶ steer (the kart speeds up by itself), BRAKE, hold **DRIFT** while turning to tighten the corner and build a **mini-turbo** (let go after about a second for a boost), and ITEM. Keyboard: arrows steer, space drift, X item, V brake.
+   - **Item barrels** on the road give a random item (better odds of moonshine if you're in the back): 🏺 **moonshine** (drunk: 1.4x top speed and fast acceleration, a little wobbly, and you plow through hay bales), 🌽 **corn missile** (shot ahead; spins out the first kart it hits), 💩 **cow pie** (dropped behind you) and 🌾 **hay shield** (soaks up one hit for 8 seconds). The rivals use items too.
+   - **Hazards:** hay bales and cow pies spin you out; the grass is slow; bends fling you toward the edge. Yellow boost pads give a burst of speed.
 
 Gear you miss is waiting in a loot chest at the end of each level. Gear, ammo, lives and score carry from level to level. In the tower and pagoda, Billy keeps his full knight-alien kit.
 

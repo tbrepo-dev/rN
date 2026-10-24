@@ -335,7 +335,7 @@ test('levels carry gear, ammo, score and lives forward', () => {
   assert.equal(g.mode, 'playing');
   nextLevel(g);
   assert.equal(g.levelNo, 3);
-  assert.equal(LEVEL_COUNT, 10);
+  assert.equal(LEVEL_COUNT, 11);
 });
 
 test('killing aliens drops ray gun ammo; the antenna helmet doubles it', () => {
@@ -1691,7 +1691,7 @@ test("the whole hunt can be done: a bot follows the clues across the map and fin
 // ---- Secret level codes ----------------------------------------------------------
 test('every level has its own secret code, and bad codes do nothing', () => {
   assert.equal(Object.keys(LEVEL_CODES).length, LEVEL_COUNT + 1, 'one per level plus the secret Egg Chamber');
-  assert.deepEqual(Object.values(LEVEL_CODES).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  assert.deepEqual(Object.values(LEVEL_CODES).sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   for (const [code, lvl] of Object.entries(LEVEL_CODES)) assert.equal(levelForCode(code), lvl);
   assert.equal(levelForCode('0000'), null);
   assert.equal(levelForCode('abcd'), null);

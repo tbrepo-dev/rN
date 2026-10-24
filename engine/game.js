@@ -3,6 +3,7 @@ import { SCENES } from './story.js';
 import { createDrive, stepDrive } from './drive.js';
 import { createFight, stepFight, OPPONENTS } from './fight.js';
 import { createRace, stepRace } from './race.js';
+import { createKart, stepKart } from './kart.js';
 
 export { LEVEL_COUNT };
 export const STEP = 1 / 60;
@@ -115,7 +116,7 @@ const ENEMY_KINDS = {
 };
 
 // Starting at a later level (the secret codes) hands Billy what he would have found on the way
-export const EGG_CODE_LEVEL = 11; // the secret Egg Chamber has its own level-select number
+export const EGG_CODE_LEVEL = 12; // the secret Egg Chamber has its own level-select number
 
 export function createGameAt(code) {
   const n = code === EGG_CODE_LEVEL ? 8 : code;
@@ -126,6 +127,7 @@ export function createGameAt(code) {
   if (n >= 8) g.lives = 5;
   if (n >= 9) g.gear.bazooka = true;
   if (n >= 10) g.lives = 5;
+  if (n >= 11) g.lives = 5;
   if (n > 1) {
     respawn(g);
     g.mode = 'intro';
@@ -171,6 +173,7 @@ export function createGame({ enemies = true, level = 1 } = {}) {
     fight: null,
     fightIdx: 0,
     race: null,
+    kart: null,
     driveCheckpoint: null,
     checkpointFloor: 9,
     checkpointHit: false,
@@ -332,6 +335,22 @@ export function respawn(g) {
     g.enemies = [];
     g.prevRush = false;
     g.drive = createDrive(g.level, { traffic: g.enemiesEnabled, cops: g.enemiesEnabled, respawn: g.driveCheckpoint });
+    return;
+  }
+  if (g.level.kind === 'kart') {
+    g.player = newPlayer(2, 9);
+    g.player.armor = armorMax(g);
+    g.mode = 'playing';
+    g.deathT = 0;
+    g.items = [];
+    g.cobs = [];
+    g.rays = [];
+    g.belches = [];
+    g.shots = [];
+    g.missiles = [];
+    g.effects = [];
+    g.enemies = [];
+    g.kart = createKart({ seed: 777 + g.lives });
     return;
   }
   if (g.level.kind === 'race') {
@@ -569,6 +588,7 @@ export function step(g, input, dt = STEP) {
   if (g.level.kind === 'drive') return stepDriveMode(g, input, dt);
   if (g.level.kind === 'fight') return stepFightMode(g, input, dt);
   if (g.level.kind === 'race') return stepRaceMode(g, input, dt);
+  if (g.level.kind === 'kart') return stepKartMode(g, input, dt);
   if (g.mode === 'dying') return stepDying(g, dt);
   if (g.mode !== 'playing') return;
 
@@ -608,6 +628,31 @@ export function step(g, input, dt = STEP) {
   if (g.level.scrollY) {
     const ty = clamp(p.y + p.h / 2 - VIEW_H * 0.55, 0, g.level.h - VIEW_H);
     g.camY += (ty - g.camY) * Math.min(1, dt * 6);
+  }
+}
+
+// Level 11 is a kart race (see kart.js)
+function stepKartMode(g, input, dt) {
+  if (g.mode === 'dying') {
+    g.deathT += dt;
+    if (g.deathT > 1.2) {
+      g.lives--;
+      if (g.lives <= 0) {
+        g.mode = 'gameover';
+        emit(g, 'gameover');
+      } else respawn(g);
+    }
+    return;
+  }
+  if (g.mode !== 'playing') return;
+  const K = g.kart;
+  const done = stepKart(K, input, dt);
+  for (const ev of K.events.splice(0)) emit(g, ev);
+  g.shake = Math.max(g.shake, K.shake);
+  if (done === 'lost') die(g);
+  else if (done === 'won') {
+    g.score += [0, 6000, 4000, 2500][K.place];
+    win(g);
   }
 }
 

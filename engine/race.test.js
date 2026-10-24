@@ -218,7 +218,10 @@ test('finishing in the top two wins the level; the win scene leads to the ending
   assert.equal(g.mode, 'scene');
   assert.equal(g.scene.id, 'raceWin');
   for (let i = 0; i < SCENES.raceWin.lines.length; i++) advanceScene(g);
-  assert.equal(g.mode, 'ending');
+  assert.equal(g.mode, 'scene');
+  assert.equal(g.scene.id, 'kartIntro');
+  for (let i = 0; i < SCENES.kartIntro.lines.length; i++) advanceScene(g);
+  assert.equal(g.levelNo, 11);
 });
 
 test('a bad finish costs a life and you run the race again', () => {

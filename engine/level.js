@@ -880,8 +880,13 @@ function buildRace() {
   };
 }
 
-export const LEVEL_COUNT = 10;
-const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell, buildTown, buildHive, buildFight, buildRace];
+// Level 11: Hillbilly Kart (see kart.js)
+function buildKart() {
+  return { ...buildRace(), kind: 'kart', id: 11, name: 'Hillbilly Kart', theme: 'kart', goalKind: 'kart', winScene: 'kartWin' };
+}
+
+export const LEVEL_COUNT = 11;
+const BUILDERS = [buildHoller, buildAlienRanch, buildMedieval, buildTower, buildPagoda, buildHell, buildTown, buildHive, buildFight, buildRace, buildKart];
 
 export function buildLevel(n = 1) {
   return BUILDERS[n - 1]();
